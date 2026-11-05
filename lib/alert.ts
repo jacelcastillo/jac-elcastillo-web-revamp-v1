@@ -4,7 +4,7 @@ export type RiskAlert = {
   descripcion: string;
 };
 
-export const RISK_SITE_URL = "https://gestionriesgo.jacelcastillo.com.co/";
+export const RISK_SITE_URL = "https://gestiondelriesgo.jacelcastillo.com.co/";
 
 const LEVELS: readonly string[] = ["amarilla", "naranja", "roja"];
 
