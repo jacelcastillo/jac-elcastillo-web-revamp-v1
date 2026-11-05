@@ -4,14 +4,21 @@ import { SectionHeader } from "@/components/molecules/SectionHeader";
 import { CardGrid } from "@/components/organisms/CardGrid";
 import { FeatureSplit } from "@/components/organisms/FeatureSplit";
 import { Hero } from "@/components/organisms/Hero";
+import { RiskAlertBanner } from "@/components/organisms/RiskAlertBanner";
+import type { RiskAlert } from "@/lib/alert";
 import { SITE } from "@/lib/site";
 import type { Summary } from "@/lib/types";
 
-type HomeTemplateProps = { latest: Summary[]; about?: Summary };
+type HomeTemplateProps = {
+  latest: Summary[];
+  about?: Summary;
+  alert?: RiskAlert | null;
+};
 
-export function HomeTemplate({ latest, about }: HomeTemplateProps) {
+export function HomeTemplate({ latest, about, alert }: HomeTemplateProps) {
   return (
     <>
+      {alert && <RiskAlertBanner alert={alert} />}
       <Hero size="lg" eyebrow="Junta de Acción Comunal" title={SITE.tagline}>
         <p className="max-w-2xl">{SITE.description}</p>
         <div className="mt-8 flex flex-wrap gap-3">
