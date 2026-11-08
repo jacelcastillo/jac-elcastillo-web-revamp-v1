@@ -39,7 +39,14 @@ const espera = (ms) => new Promise((r) => setTimeout(r, ms))
 
 async function pedir(ruta, opciones = {}) {
   for (let intento = 1; intento <= 3; intento++) {
-    const res = await fetch(`${base}${ruta}`, opciones)
+    let res
+    try {
+      res = await fetch(`${base}${ruta}`, opciones)
+    } catch (e) {
+      // Apache cierra la conexión reutilizada durante las pausas de wp-cli; se reintenta con una nueva.
+      if (e.cause?.code === 'UND_ERR_SOCKET' && intento < 3) continue
+      throw e
+    }
     const texto = await res.text()
     const reto =
       (res.headers.get('content-type') ?? '').includes('text/html') &&
@@ -94,8 +101,21 @@ check(
   ),
 )
 
-const { res: tipoRest } = await pedir('/wp-json/wp/v2/jw_dignatario')
-check('/wp-json/wp/v2/jw_dignatario: 404', tipoRest.status === 404, String(tipoRest.status))
+const { res: tipoRest, texto: tipoCuerpo } = await pedir('/wp-json/wp/v2/jw_dignatario')
+check('/wp-json/wp/v2/jw_dignatario anónimo: 200 JSON', tipoRest.status === 200 && (tipoRest.headers.get('content-type') ?? '').includes('application/json'), String(tipoRest.status))
+let tipoDatos = null
+try {
+  tipoDatos = JSON.parse(tipoCuerpo)
+} catch {}
+const prohibidasRest = llavesProhibidas(tipoDatos)
+check('/wp-json/wp/v2/jw_dignatario anónimo: ninguna llave de autor, correo, usuario o teléfono', tipoDatos !== null && prohibidasRest.length === 0, prohibidasRest.join(','))
+
+const { res: crearAnonimo } = await pedir('/wp-json/wp/v2/jw_dignatario', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ title: 'Anónimo', status: 'publish' }),
+})
+check('/wp-json/wp/v2/jw_dignatario anónimo: POST da 401', crearAnonimo.status === 401, String(crearAnonimo.status))
 
 if (prod) {
   console.log(`${fallos ? 'FAIL' : 'OK'} producción: ${fallos} fallos`)
@@ -126,6 +146,68 @@ check('exactamente una foto no nula', conFoto.length === 1, String(conFoto.lengt
 
 const { res: frente, texto: htmlFrente } = await pedir('/?post_type=jw_dignatario')
 check('?post_type=jw_dignatario no lista dignatarios', !/Persona de prueba/.test(htmlFrente), String(frente.status))
+
+const wp = (...argv) =>
+  spawnSync('docker', ['compose', '-f', 'wordpress/compose.yml', 'run', '--rm', '-T', 'wpcli', 'wp', ...argv], {
+    cwd: raiz,
+    encoding: 'utf8',
+  })
+
+const editor = wp('eval', "echo use_block_editor_for_post_type('jw_dignatario') ? 'si' : 'no';")
+check('jw_dignatario usa el editor clásico', editor.stdout?.trim() === 'no', (editor.stdout ?? '') + (editor.stderr ?? ''))
+
+const fotoPrueba = wp('post', 'list', '--post_type=attachment', '--meta_key=jw_prueba', '--meta_value=foto', '--field=ID')
+const fotoId = Number(fotoPrueba.stdout?.trim().split('\n')[0])
+const clave = wp('user', 'application-password', 'create', 'admin', 'jw-check', '--porcelain')
+const contrasena = clave.stdout?.trim()
+check('contraseña de aplicación creada para el admin local', clave.status === 0 && Boolean(contrasena), clave.stderr ?? '')
+check('existe la foto de prueba', Number.isInteger(fotoId) && fotoId > 0, fotoPrueba.stdout ?? '')
+
+let creadoId = 0
+try {
+  const auth = { Authorization: `Basic ${Buffer.from(`admin:${contrasena}`).toString('base64')}`, 'Content-Type': 'application/json' }
+  const { res: creado, texto: cuerpoCreado } = await pedir('/wp-json/wp/v2/jw_dignatario', {
+    method: 'POST',
+    headers: auth,
+    body: JSON.stringify({
+      title: 'Persona de prueba REST',
+      status: 'publish',
+      menu_order: 5,
+      featured_media: fotoId,
+      meta: { jw_periodo: '2026-2030', jw_cargo: 'tesoreria', jw_detalle: 'Prueba REST' },
+    }),
+  })
+  check('autenticado: POST crea el dignatario (201)', creado.status === 201, `${creado.status} ${cuerpoCreado.slice(0, 200)}`)
+  try {
+    creadoId = JSON.parse(cuerpoCreado).id ?? 0
+  } catch {}
+
+  const { texto: cuerpoPublico } = await pedir('/wp-json/jac-web/v1/dignatarios')
+  let publico = []
+  try {
+    publico = JSON.parse(cuerpoPublico).periodos
+  } catch {}
+  const creadoPublico = publico.flatMap((p) => p.dignatarios).find((d) => d.id === creadoId)
+  check(
+    'el dignatario creado por REST sale en jac-web/v1/dignatarios con sus campos y foto',
+    creadoPublico?.nombre === 'Persona de prueba REST' &&
+      creadoPublico.cargo === 'tesoreria' &&
+      creadoPublico.detalle === 'Prueba REST' &&
+      creadoPublico.foto !== null &&
+      publico.find((p) => p.dignatarios.some((d) => d.id === creadoId))?.periodo === '2026-2030',
+    JSON.stringify(creadoPublico),
+  )
+} finally {
+  if (creadoId) {
+    const { res: borrado } = await pedir(`/wp-json/wp/v2/jw_dignatario/${creadoId}?force=true`, {
+      method: 'DELETE',
+      headers: { Authorization: `Basic ${Buffer.from(`admin:${contrasena}`).toString('base64')}` },
+    })
+    check('autenticado: DELETE ?force=true borra el dignatario', borrado.status === 200, String(borrado.status))
+  }
+  const claves = JSON.parse(wp('user', 'application-password', 'list', 'admin', '--fields=uuid,name', '--format=json').stdout || '[]')
+  for (const { uuid } of claves.filter((c) => c.name === 'jw-check')) wp('user', 'application-password', 'delete', 'admin', uuid)
+}
 
 const log = spawnSync('docker', ['compose', '-f', 'wordpress/compose.yml', 'exec', '-T', 'wordpress', 'cat', 'wp-content/debug.log'], {
   cwd: raiz,

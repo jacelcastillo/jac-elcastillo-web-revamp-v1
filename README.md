@@ -232,6 +232,8 @@ En Dignatarios → Añadir nuevo, una entrada por persona y período:
 - **Detalle:** texto opcional de hasta 80 caracteres, como "Suplente". Con Otro cargo, el detalle es el cargo que se muestra.
 - **Orden** (caja Atributos): solo desempata a personas con el mismo cargo.
 
+Los editores también pueden crear y editar dignatarios por la API REST de WordPress, en `/wp-json/wp/v2/jw_dignatario` (con sesión o contraseña de aplicación). Período, Cargo y Detalle van dentro de `meta`: `jw_periodo`, `jw_cargo` y `jw_detalle`.
+
 Para que un período se vea en el sitio nuevo, debe existir su página como hija de Nuestra historia, con el período como slug (por ejemplo `2026-2030`). Un borrador o una entrada con contraseña no se publica.
 
 ### Probarlo en local

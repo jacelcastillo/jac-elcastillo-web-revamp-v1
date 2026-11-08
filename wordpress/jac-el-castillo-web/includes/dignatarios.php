@@ -56,11 +56,11 @@ function jw_registrar_dignatarios(): void {
         'exclude_from_search' => true,
         'show_ui' => true,
         'show_in_nav_menus' => false,
-        'show_in_rest' => false,
+        'show_in_rest' => true,
         'rewrite' => false,
         'query_var' => false,
         'has_archive' => false,
-        'supports' => ['title', 'thumbnail', 'page-attributes'],
+        'supports' => ['title', 'thumbnail', 'page-attributes', 'custom-fields'],
         'capability_type' => 'post',
         'menu_icon' => 'dashicons-groups',
     ]);
@@ -69,7 +69,7 @@ function jw_registrar_dignatarios(): void {
         'object_subtype' => 'jw_dignatario',
         'type' => 'string',
         'single' => true,
-        'show_in_rest' => false,
+        'show_in_rest' => true,
         'default' => '',
         'auth_callback' => static fn(bool $ok, string $clave, int $id): bool => current_user_can('edit_post', $id),
     ];
@@ -98,6 +98,7 @@ function jw_periodos_usados(): array {
 }
 
 function jw_agregar_caja_dignatario(): void {
+    remove_meta_box('postcustom', 'jw_dignatario', 'normal');
     add_meta_box('jw_dignatario_datos', 'Datos del dignatario', 'jw_pintar_caja_dignatario', 'jw_dignatario', 'normal', 'high');
 }
 
