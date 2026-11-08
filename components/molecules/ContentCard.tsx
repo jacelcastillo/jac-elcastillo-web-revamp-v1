@@ -11,7 +11,7 @@ type ContentCardProps = { item: Summary };
 export function ContentCard({ item }: ContentCardProps) {
   const { image, category, date } = item;
   return (
-    <article className="relative flex flex-col overflow-hidden rounded-2xl border border-line bg-white transition motion-safe:hover:-translate-y-1 motion-safe:hover:shadow-lg">
+    <article className="relative flex w-full flex-col overflow-hidden rounded-2xl border border-line bg-white transition motion-safe:hover:-translate-y-1 motion-safe:hover:shadow-lg">
       <div className="relative aspect-[16/10] bg-paper">
         {image ? (
           <Image

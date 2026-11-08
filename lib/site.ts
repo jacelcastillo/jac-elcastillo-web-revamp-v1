@@ -58,7 +58,8 @@ export const NAV: NavEntry[] = [
     label: "La Junta",
     items: [
       { label: "Quiénes somos", href: "/nosotros/" },
-      { label: "Dignatarios", href: "/dignatarios/" },
+      { label: "Dignatarios", href: "/historia/2026-2030/" },
+      { label: "Nuestra historia", href: "/historia/" },
       { label: "Comités", href: "/comites/" },
     ],
   },

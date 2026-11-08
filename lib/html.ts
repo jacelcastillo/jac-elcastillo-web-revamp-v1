@@ -1,4 +1,5 @@
 import sanitizeHtml from "sanitize-html";
+import { pathOf } from "./paths.ts";
 import type { SafeHtml } from "./types.ts";
 
 const OPENERS = ["»", "&#8221;", '"'];
@@ -77,14 +78,6 @@ function renderModule(name: string, a: Record<string, string>): string {
       : "";
   }
   return "";
-}
-
-function pathOf(url: string): string {
-  try {
-    return new URL(url, "https://placeholder.invalid").pathname;
-  } catch {
-    return "";
-  }
 }
 
 const isVideoFile = (url: string) => /\.(mp4|webm|ogg)$/i.test(pathOf(url));

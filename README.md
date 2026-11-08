@@ -17,6 +17,7 @@ Nueva interfaz del sitio de la Junta de Acción Comunal Ciudad Campestre El Cast
     ├─ /wp-json/wp/v2/posts        entradas (noticias)
     ├─ /wp-json/wp/v2/pages        páginas
     ├─ /wp-json/wp/v2/categories   categorías
+    ├─ /wp-json/jac-web/v1/dignatarios   dignatarios de cada período (plugin propio)
     └─ /wp-content/uploads/...     imágenes (pasan por /_next/image)
 ```
 
@@ -76,6 +77,10 @@ Los archivos `.env*` están en `.gitignore`. En Vercel la variable se define en 
 | `pnpm test` | Tests de `lib/` con `node --test`, sin framework |
 | `pnpm check-urls <base>` | Recorre todas las URLs de WordPress contra la app y comprueba los códigos esperados |
 | `pnpm exec tsc --noEmit` | Chequeo de tipos |
+| `pnpm wp:up` | Levanta el WordPress local del plugin (http://localhost:8081) |
+| `pnpm wp:setup` | Instala WordPress local, activa el plugin y carga datos de prueba ficticios (se puede repetir) |
+| `pnpm wp:check` | Comprueba la ruta de dignatarios contra el WordPress local. Con `node scripts/check-wp.mjs <url> --prod` solo lee |
+| `pnpm wp:zip` | Genera `dist/jac-el-castillo-web.zip` |
 
 ## Estructura
 
@@ -86,7 +91,7 @@ app/                    rutas (App Router)
   noticias/page.tsx     listado de entradas con filtro y paginación
   comites/page.tsx      listado de comités
   contacto/page.tsx     contacto (estática)
-  [slug]/page.tsx       cualquier entrada o página de WordPress
+  [...path]/page.tsx    cualquier entrada o página de WordPress, incluidas las páginas hijas
   robots.ts             Disallow: /
   globals.css           Tailwind, tokens (@theme) y utilidades propias
   favicon.ico, icon.png, apple-icon.png
@@ -98,14 +103,20 @@ components/
 lib/
   cms/client.ts         wp(): la única función que habla HTTP con WordPress
   cms/content.ts        consultas y mapeo del JSON de WordPress a tipos de dominio
+  cms/board.ts          getBoardMembers(): dignatarios de un período
+  board.ts              toBoardTerms() e isTerm(): valida el JSON de dignatarios
   html.ts               clean(), text(), isSlug(), truncate()
   images.ts             optimizeImages(): imágenes del contenido por /_next/image
   listing.ts            validación de ?categoria y ?page
+  paths.ts              pathOf(), pickByPath() y sortChildren(): rutas anidadas de páginas hijas
   site.ts               datos fijos: nombre, contacto, menú, comités
   types.ts              tipos de dominio (Summary, Entry, SafeHtml...)
   *.test.ts             tests de lib/
 public/brand/           copia local de la marca 2x2 (cropped-favicon.webp)
 scripts/check-urls.mjs  verificación de URLs de punta a punta
+scripts/check-wp.mjs    verificación de la ruta de dignatarios (local y --prod)
+scripts/zip-plugin.sh   empaqueta el plugin en dist/
+wordpress/              plugin jac-el-castillo-web, WordPress local y datos de prueba
 ```
 
 ## Rutas
@@ -116,12 +127,12 @@ scripts/check-urls.mjs  verificación de URLs de punta a punta
 | `/noticias/` | Entradas, 9 por página. `?categoria=<slug>` filtra y `?page=<n>` pagina | En cada visita (lee `searchParams`), con datos en caché |
 | `/comites/` | Las páginas listadas en `COMMITTEES` de `lib/site.ts` | En cada visita (`force-dynamic`), con datos en caché |
 | `/contacto/` | Datos de contacto de `lib/site.ts` | Estática, en el build |
-| `/<slug>/` | La entrada o página de WordPress con ese slug | ISR: se genera en la primera visita y se renueva cada 5 minutos |
+| `/<ruta>/` | Cualquier entrada o página de WordPress en la ruta de su enlace (`link`), incluidas las páginas hijas (`/historia/2022-2026/`). Una página con páginas hijas las lista como tarjetas bajo su contenido. Una página cuyo slug es un período (`AAAA-AAAA`) muestra además su grilla de Dignatarios. Entrar a una página hija por su ruta plana redirige (308) a la anidada | ISR: se genera en la primera visita y se renueva cada 5 minutos |
 | `/robots.txt` | `Disallow: /` mientras sea prototipo | Estática |
 
 Las URLs terminan en `/` (`trailingSlash: true`), igual que en WordPress, para que las direcciones no cambien el día del cambio de dominio.
 
-Si una entrada y una página tienen el mismo slug, `getEntry` muestra la entrada.
+Si una entrada y una página tienen la misma ruta, `getEntryByPath` muestra la entrada. Las entradas siempre tienen una sola parte (`/<slug>/`); solo las páginas pueden anidarse, hasta 3 niveles.
 
 ## El backend: WordPress como CMS headless
 
@@ -143,12 +154,13 @@ La app pide siempre `_fields` explícitos y nunca pide el autor, así no expone 
 - Devuelve `null` si WordPress responde 404, o 400 con `rest_post_invalid_page_number` (una página de resultados que no existe). La ruta lo convierte en un 404 propio.
 - Cualquier otro error lanza una excepción. Con ISR, si WordPress falla al renovar una página, el visitante sigue viendo la última versión buena.
 - Lee el total de páginas de la cabecera `X-WP-TotalPages`.
+- `wpRoute(ruta)` lee una ruta propia (`/wp-json/<ruta>`) con el mismo tiempo límite y caché. Un 404 da `null` (plugin sin instalar). Una respuesta que no es OK o no es JSON, como el reto anti-bot del hosting, lanza un error para que ISR conserve la última versión buena.
 
 ### Del JSON de WordPress a tipos de dominio: `lib/cms/content.ts`
 
 | Función | Devuelve |
 |---|---|
-| `getEntry(slug)` | `Entry` (título, extracto, imagen, fecha, categoría y HTML limpio), buscando en entradas y páginas a la vez |
+| `getEntryByPath(segmentos)` | `{ entry }` (título, extracto, imagen, fecha, categoría, HTML limpio y las páginas hijas), `{ redirect }` si la ruta plana corresponde a una única página hija, o `null` |
 | `getPosts({ page, categoria, perPage })` | Una página de `Summary` y el total de páginas, o `null` si la categoría o la página no existen |
 | `getLatest(count)` | Las últimas entradas |
 | `getPagesBySlugs(slugs)` | Páginas en el orden pedido (WordPress no respeta el orden de la lista) |
@@ -190,10 +202,61 @@ Después, `optimizeImages()` en `lib/images.ts` reescribe las `<img>` que vienen
 ### Qué tiene que saber quien publica en wp-admin
 
 - **Noticias** son las entradas. Su slug es su URL (`/<slug>/`) y su imagen destacada es la de la tarjeta.
-- **Páginas** también se ven en `/<slug>/`. "Quiénes somos" en el inicio lee la página con slug `nosotros`.
+- **Páginas** se ven en la ruta de su enlace de WordPress (`/<slug>/`, o `/<padre>/<slug>/` si tienen página superior). "Quiénes somos" en el inicio lee la página con slug `nosotros`.
+- **Páginas hijas:** se crean eligiendo la página superior en Atributos de página → Superior. La página superior las muestra como tarjetas bajo su contenido, ordenadas por el campo "Orden" (menor primero). Con el mismo orden, gana el slug mayor.
+- **Nuestra historia** es la página `historia`. Cada período de la Junta es una página hija con slug `AAAA-AAAA` (por ejemplo `2026-2030`). La página lleva solo el texto de agradecimiento y su imagen destacada, que es la de la tarjeta. Las personas no van en el contenido de la página: se cargan en Dignatarios (ver [El plugin de WordPress](#el-plugin-de-wordpress)). El ítem "Dignatarios" del menú de la app apunta al período vigente y se cambia en `NAV` de `lib/site.ts` en cada período.
 - **Comités:** la lista de páginas está en `COMMITTEES` de `lib/site.ts`. Un comité nuevo necesita su página en WordPress y su slug en esa lista.
 - **Menú:** el menú de WordPress no se lee, porque su endpoint REST exige iniciar sesión. El menú de la app vive en `NAV` de `lib/site.ts`.
 - **Constructores visuales:** el texto y las imágenes de Divi y Elementor se ven bien. Los widgets interactivos (formularios, carruseles, botones del tema) no pasan la limpieza. Para contenido nuevo conviene el editor de bloques de WordPress.
+
+## El plugin de WordPress
+
+`wordpress/jac-el-castillo-web/` (en wp-admin: "JAC El Castillo · Sitio web") guarda el contenido del sitio que necesita campos propios, hoy los dignatarios de cada período, y lo publica por una ruta REST de solo lectura. Es un plugin aparte del de gestión del riesgo porque ese es del micrositio de emergencias y tiene datos vivos.
+
+### Instalarlo
+
+1. Ejecuta `pnpm wp:zip`.
+2. En wp-admin: Plugins → Añadir nuevo → Subir plugin → `dist/jac-el-castillo-web.zip` → Activar.
+3. LiteSpeed Cache → Purgar todo.
+
+Sin el plugin, la app no se rompe: la ruta da 404 y la página del período sale sin la grilla.
+
+### Cómo carga la Junta los dignatarios
+
+En Dignatarios → Añadir nuevo, una entrada por persona y período:
+
+- **Título:** el nombre completo.
+- **Imagen destacada:** la foto. Súbela solo con autorización de la persona. Sin foto se muestra la marca 2x2.
+- **Período:** `AAAA-AAAA`, con el año final mayor que el inicial (por ejemplo `2026-2030`). Sin un período válido, la persona no se publica.
+- **Cargo:** de una lista fija. El orden de la grilla es el de la lista: Presidencia, Vicepresidencia, Tesorería, Secretaría, Fiscalía, Comisión de convivencia y conciliación, Delegación ante Asocomunal, Coordinación de comisión de trabajo y Otro cargo.
+- **Detalle:** texto opcional de hasta 80 caracteres, como "Suplente". Con Otro cargo, el detalle es el cargo que se muestra.
+- **Orden** (caja Atributos): solo desempata a personas con el mismo cargo.
+
+Para que un período se vea en el sitio nuevo, debe existir su página como hija de Nuestra historia, con el período como slug (por ejemplo `2026-2030`). Un borrador o una entrada con contraseña no se publica.
+
+### Probarlo en local
+
+```bash
+pnpm wp:up       # WordPress en http://localhost:8081 (admin / admin-local)
+pnpm wp:setup    # instala, activa el plugin y carga datos de prueba ficticios
+pnpm wp:check    # verifica la ruta y los casos borde
+pnpm wp:zip      # genera dist/jac-el-castillo-web.zip
+```
+
+Para ver la app contra ese WordPress: `pnpm build` y `WP_URL=http://localhost:8081 pnpm start`. En local las fotos vienen de `localhost:8081`, que la app no admite como origen de imágenes, así que se ve la marca 2x2. La foto real se comprueba en producción.
+
+### La ruta
+
+`GET /wp-json/jac-web/v1/dignatarios`: pública, de solo lectura y con `Cache-Control: public, max-age=300`. Los períodos van del más nuevo al más antiguo, y dentro de cada uno, por cargo, después por Orden y después por nombre. Nunca salen autor, correo ni teléfono.
+
+```json
+{ "periodos": [ { "periodo": "2026-2030", "dignatarios": [
+  { "id": 12, "nombre": "Persona de prueba Uno", "cargo": "presidencia", "cargo_nombre": "Presidencia", "detalle": "",
+    "foto": { "url": "https://jacelcastillo.com.co/wp-content/uploads/...", "ancho": 683, "alto": 1024 } }
+] } ] }
+```
+
+`foto` es `null` si la persona no tiene imagen destacada. La app solo acepta fotos de `/wp-content/uploads/` del dominio de WordPress.
 
 ## Frontend
 
@@ -231,7 +294,7 @@ Tailwind va por `@tailwindcss/postcss` (`postcss.config.mjs`). El loader de Turb
 - **Cabeceras** (`next.config.ts`): Content Security Policy, `X-Content-Type-Options: nosniff` y `Referrer-Policy`. `X-Powered-By` está apagado y Vercel agrega HSTS. La CSP solo permite imágenes y videos del dominio de WordPress y mapas de Google.
 - **Optimizador de imágenes cerrado:** `remotePatterns` solo admite `https://jacelcastillo.com.co/wp-content/uploads/**`, así `/_next/image` no sirve de proxy abierto.
 - **Fuera de buscadores** mientras sea prototipo: `noindex` en el layout y `Disallow: /` en `robots.txt`.
-- **WordPress** tiene un plugin propio, fuera de este repo, que oculta los usuarios en la API REST, redirige los archivos de autor y los quita del sitemap.
+- **WordPress** tiene un plugin propio de seguridad, fuera de este repo, que oculta los usuarios en la API REST, redirige los archivos de autor y los quita del sitemap.
 
 ## Calidad y verificación
 

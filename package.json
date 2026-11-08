@@ -8,7 +8,11 @@
     "start": "next start",
     "lint": "eslint",
     "test": "node --test lib/*.test.ts",
-    "check-urls": "node scripts/check-urls.mjs"
+    "check-urls": "node scripts/check-urls.mjs",
+    "wp:up": "docker compose -f wordpress/compose.yml up -d",
+    "wp:setup": "docker compose -f wordpress/compose.yml run --rm -T wpcli bash /dev-scripts/setup.sh",
+    "wp:check": "node scripts/check-wp.mjs http://localhost:8081",
+    "wp:zip": "bash scripts/zip-plugin.sh"
   },
   "dependencies": {
     "next": "16.4.3",

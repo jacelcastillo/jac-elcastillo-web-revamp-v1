@@ -1,24 +1,24 @@
 const base = (process.argv[2] ?? "http://localhost:3000").replace(/\/$/, "");
 const wp = (process.env.WP_URL ?? "https://jacelcastillo.com.co").replace(/\/$/, "");
 
-async function wpSlugs(type) {
-  const slugs = [];
+async function wpPaths(type) {
+  const paths = [];
   let pages = 1;
   for (let page = 1; page <= pages; page++) {
-    const res = await fetch(`${wp}/wp-json/wp/v2/${type}?per_page=100&page=${page}&_fields=slug`, {
+    const res = await fetch(`${wp}/wp-json/wp/v2/${type}?per_page=100&page=${page}&_fields=link`, {
       signal: AbortSignal.timeout(30000),
     });
     if (!res.ok) throw new Error(`WordPress ${type} page ${page}: ${res.status}`);
     pages = Number(res.headers.get("x-wp-totalpages") ?? 1);
-    slugs.push(...(await res.json()).map((e) => e.slug));
+    paths.push(...(await res.json()).map((e) => new URL(e.link).pathname));
   }
-  return slugs;
+  return paths;
 }
 
-const slugs = [...new Set([...(await wpSlugs("posts")), ...(await wpSlugs("pages"))])];
+const wpUrls = [...new Set([...(await wpPaths("posts")), ...(await wpPaths("pages"))])];
 
 const checks = [
-  ...["/", "/noticias/", "/comites/", "/contacto/", "/robots.txt", ...slugs.map((s) => `/${s}/`)].map((p) => [[200], p]),
+  ...["/", "/noticias/", "/comites/", "/contacto/", "/robots.txt", ...wpUrls].map((p) => [[200], p]),
   ...["/x%3F_fields%3Dauthor/", "/no-existe-este-slug/", "/noticias/?categoria=%3Cscript%3E", "/noticias/?page=-1"].map((p) => [[404], p]),
   [[400, 404], "/..%2Fusers/"],
   [[400], "/_next/image/?url=https%3A%2F%2Fevil.com%2Fx.png&w=640&q=75"],

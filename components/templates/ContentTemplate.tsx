@@ -2,8 +2,9 @@ import type { ReactNode } from "react";
 import { Container } from "@/components/atoms/Container";
 import { DateText } from "@/components/atoms/DateText";
 import { Prose } from "@/components/atoms/Prose";
+import { CardGrid } from "@/components/organisms/CardGrid";
 import { Hero } from "@/components/organisms/Hero";
-import type { SafeHtml } from "@/lib/types";
+import type { SafeHtml, Summary } from "@/lib/types";
 
 type ContentTemplateProps = {
   title: string;
@@ -11,6 +12,7 @@ type ContentTemplateProps = {
   intro?: string;
   date?: string;
   html?: SafeHtml;
+  items?: Summary[];
   children?: ReactNode;
 };
 
@@ -20,6 +22,7 @@ export function ContentTemplate({
   intro,
   date,
   html,
+  items,
   children,
 }: ContentTemplateProps) {
   return (
@@ -32,6 +35,11 @@ export function ContentTemplate({
         {html && <Prose html={html} />}
         {children}
       </Container>
+      {items && items.length > 0 && (
+        <Container size="wide" className="pb-10 md:pb-14">
+          <CardGrid items={items} empty="" />
+        </Container>
+      )}
     </>
   );
 }

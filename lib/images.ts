@@ -1,6 +1,6 @@
 import type { SafeHtml } from "./types.ts";
 
-const UPLOADS = "https://jacelcastillo.com.co/wp-content/uploads/";
+export const UPLOADS = "https://jacelcastillo.com.co/wp-content/uploads/";
 const WIDTHS = [640, 828, 1080, 1920];
 const SRC_WIDTH = 1080;
 const QUALITY = 75;

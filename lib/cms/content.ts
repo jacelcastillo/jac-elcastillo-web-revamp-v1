@@ -1,5 +1,6 @@
 import { clean, text, truncate } from "../html.ts";
 import { optimizeImages } from "../images.ts";
+import { pathOf, pickByPath, sortChildren } from "../paths.ts";
 import type { Category, Entry, Img, SafeHtml, Summary } from "../types.ts";
 import { cache } from "react";
 import { wp } from "./client.ts";
@@ -12,7 +13,10 @@ type Media = {
 };
 type Term = { id: number; taxonomy: string; slug: string; name: string };
 type WpEntry = {
+  id?: number;
   slug: string;
+  link: string;
+  menu_order?: number;
   date: string;
   title: Rendered;
   excerpt: Rendered;
@@ -25,7 +29,7 @@ type WpEntry = {
 
 const UNCATEGORIZED = 1;
 const PER_PAGE = 9;
-const FIELDS = "slug,date,title,excerpt,content,_links,_embedded";
+const FIELDS = "id,slug,link,menu_order,date,title,excerpt,content,_links,_embedded";
 const EMBED = "wp:featuredmedia,wp:term";
 
 function toImage(media?: Media): Img | undefined {
@@ -47,7 +51,7 @@ function toCategory(terms?: Term[][]): Category | undefined {
 
 function toSummary(raw: Omit<WpEntry, "content">, excerpt: string): Summary {
   return {
-    href: `/${raw.slug}/`,
+    href: pathOf(raw.link),
     title: text(raw.title.rendered),
     excerpt,
     image: toImage(raw._embedded?.["wp:featuredmedia"]?.[0]),
@@ -72,19 +76,44 @@ function toEntry(raw: WpEntry, kind: Entry["kind"]): Entry {
   return { ...summary, kind, html };
 }
 
-export async function getEntry(slug: string): Promise<Entry | null> {
-  const query = { slug, _fields: FIELDS, _embed: EMBED };
+export async function getEntryByPath(
+  segments: string[],
+): Promise<{ entry: Entry } | { redirect: string } | null> {
+  const query = { slug: segments[segments.length - 1], _fields: FIELDS, _embed: EMBED };
   const [posts, pages] = await Promise.all([
-    wp<WpEntry[]>("posts", query),
+    segments.length === 1 ? wp<WpEntry[]>("posts", query) : null,
     wp<WpEntry[]>("pages", query),
   ]);
-  const post = posts?.data[0];
-  if (post) return toEntry(post, "post");
-  const page = pages?.data[0];
-  return page ? toEntry(page, "page") : null;
+  const candidates = [
+    ...(posts?.data ?? []).map((raw) => ({ path: pathOf(raw.link), raw, kind: "post" as const })),
+    ...(pages?.data ?? []).map((raw) => ({ path: pathOf(raw.link), raw, kind: "page" as const })),
+  ];
+  const picked = pickByPath(candidates, segments);
+  if (!picked) return null;
+  if ("redirect" in picked) return picked;
+  const { raw, kind } = picked.match;
+  const entry = toEntry(raw, kind);
+  if (kind === "page" && raw.id !== undefined) {
+    const children = await wp<WpEntry[]>("pages", {
+      parent: raw.id,
+      per_page: 100,
+      _fields: FIELDS,
+      _embed: EMBED,
+    });
+    const sorted = sortChildren(
+      (children?.data ?? []).map((child) => ({
+        menuOrder: child.menu_order ?? 0,
+        slug: child.slug,
+        summary: toEntry(child, "page"),
+      })),
+    );
+    if (sorted.length) entry.children = sorted.map((c) => c.summary);
+  }
+  return { entry };
 }
 
 export async function getPagesBySlugs(slugs: string[]): Promise<Summary[]> {
+  if (slugs.length === 0) return [];
   const res = await wp<WpEntry[]>("pages", {
     slug: slugs.join(","),
     per_page: 100,
@@ -126,7 +155,7 @@ export async function getPosts({
   const params: Record<string, string | number> = {
     per_page: perPage,
     page,
-    _fields: "slug,date,title,excerpt,_links,_embedded",
+    _fields: "slug,link,date,title,excerpt,_links,_embedded",
     _embed: "wp:featuredmedia,wp:term",
   };
   if (categoria) {
