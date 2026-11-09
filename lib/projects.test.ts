@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { categoriesOf, dateRange, filterProjects, formatCOP, toProjectsPage } from "./projects.ts";
+import { categoriesOf, filterProjects, formatCOP, participantsText, periodText, toProjectsPage } from "./projects.ts";
 import { listingHref, parseProjectQuery } from "./listing.ts";
 
 const UPLOAD = "https://jacelcastillo.com.co/wp-content/uploads/2026/01/portada.jpg";
@@ -108,13 +108,40 @@ test("categoriesOf lists each category once, sorted in Spanish", () => {
   assert.deepEqual(categoriesOf([]), []);
 });
 
-test("dateRange formats month and year without shifting the day", () => {
-  assert.equal(dateRange("2024-03-01", "2024-12-31"), "mar 2024 a dic 2024");
-  assert.equal(dateRange("2024-03-01"), "Desde mar 2024");
-  assert.equal(dateRange("", "2024-12-31"), "Hasta dic 2024");
-  assert.equal(dateRange(), "");
-  assert.equal(dateRange("", ""), "");
-  assert.equal(dateRange("2025-01-01", "2025-01-31"), "ene 2025 a ene 2025");
+test("periodText follows the status table without shifting the day", () => {
+  assert.equal(periodText("planificacion", "2025-03-01"), "Inicia mar 2025");
+  assert.equal(periodText("planificacion"), "Inicio por definir");
+  assert.equal(periodText("planificacion", "", "2025-12-31"), "Inicio por definir");
+  assert.equal(periodText("progreso", "2024-03-01", "2024-12-31"), "En curso hasta dic 2024");
+  assert.equal(periodText("progreso", "", "2024-12-31"), "En curso hasta dic 2024");
+  assert.equal(periodText("progreso", "2024-03-01"), "En curso desde mar 2024");
+  assert.equal(periodText("progreso"), "En curso");
+  assert.equal(periodText("completado", "2024-01-01", "2024-10-31"), "Completado oct 2024");
+  assert.equal(periodText("completado", "2024-01-01"), "Completado");
+  assert.equal(periodText("completado"), "Completado");
+  assert.equal(periodText("suspendido", "2024-03-01"), "Suspendido (inició mar 2024)");
+  assert.equal(periodText("suspendido", "", "2024-12-31"), "Suspendido");
+  assert.equal(periodText("suspendido"), "Suspendido");
+  assert.equal(periodText("progreso", "2025-01-01", "2025-01-31"), "En curso hasta ene 2025");
+  assert.equal(periodText("desconocido", "2025-01-01"), "");
+});
+
+test("participantsText pluralizes and falls back to Por definir", () => {
+  assert.equal(participantsText(0), "Por definir");
+  assert.equal(participantsText(1), "1 participante");
+  assert.equal(participantsText(45), "45 participantes");
+});
+
+test("location and participants are parsed defensively", () => {
+  const [ok] = page(project({ ubicacion: " Vereda de prueba ", participantes: 45 })).projects;
+  assert.equal(ok.location, "Vereda de prueba");
+  assert.equal(ok.participants, 45);
+  for (const participantes of [-5, "9", 1.5, null, undefined]) {
+    const [p] = page(project({ ubicacion: 5, participantes })).projects;
+    assert.equal(p.location, "");
+    assert.equal(p.participants, 0);
+  }
+  assert.equal(page(project({ participantes: 99_999_999 })).projects[0].participants, 1_000_000);
 });
 
 test("formatCOP uses es-CO pesos without decimals", () => {

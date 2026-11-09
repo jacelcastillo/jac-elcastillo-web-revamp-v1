@@ -43,6 +43,8 @@ function toProject(raw: unknown, statuses: Category[]): Project[] {
       start: date(raw.inicio),
       end: date(raw.fin),
       budget: { total: count(budget.total), executed: count(budget.ejecutado) },
+      location: str(raw.ubicacion),
+      participants: count(raw.participantes, 1_000_000),
       partners: str(raw.aliados).replace(/\s+/g, " "),
       categories: Array.isArray(raw.categorias)
         ? raw.categorias.flatMap((c) => toCategory(c, "slug", "nombre"))
@@ -99,9 +101,25 @@ function month(value: string) {
   return `${part("month")} ${part("year")}`;
 }
 
-export function dateRange(start?: string, end?: string): string {
-  if (start && end) return `${month(start)} a ${month(end)}`;
-  if (start) return `Desde ${month(start)}`;
-  if (end) return `Hasta ${month(end)}`;
-  return "";
+export function periodText(status: string, start?: string, end?: string): string {
+  switch (status) {
+    case "planificacion":
+      return start ? `Inicia ${month(start)}` : "Inicio por definir";
+    case "progreso":
+      if (end) return `En curso hasta ${month(end)}`;
+      return start ? `En curso desde ${month(start)}` : "En curso";
+    case "completado":
+      return end ? `Completado ${month(end)}` : "Completado";
+    case "suspendido":
+      return start ? `Suspendido (inició ${month(start)})` : "Suspendido";
+    default:
+      return "";
+  }
+}
+
+export const TBD = "Por definir";
+
+export function participantsText(n: number): string {
+  if (n <= 0) return TBD;
+  return n === 1 ? "1 participante" : `${n} participantes`;
 }

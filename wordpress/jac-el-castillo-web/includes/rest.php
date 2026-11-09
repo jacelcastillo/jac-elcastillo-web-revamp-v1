@@ -115,6 +115,8 @@ function jw_proyectos_publicos(): array {
                 'total' => jw_entero($meta('jw_presupuesto_total'), 0, JW_PRESUPUESTO_MAX),
                 'ejecutado' => jw_entero($meta('jw_presupuesto_ejecutado'), 0, JW_PRESUPUESTO_MAX),
             ],
+            'ubicacion' => jw_texto(jw_plano($meta('jw_ubicacion')), 80),
+            'participantes' => jw_entero($meta('jw_participantes'), 0, 1000000),
             'aliados' => jw_parrafo(jw_plano($meta('jw_aliados')), 300),
             'categorias' => is_wp_error($categorias) ? [] : array_map(
                 static fn(WP_Term $t): array => ['slug' => $t->slug, 'nombre' => jw_plano($t->name)],

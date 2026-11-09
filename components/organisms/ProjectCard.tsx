@@ -1,4 +1,5 @@
 import Image from "next/image";
+import { buttonClass } from "@/components/atoms/Button";
 import { Heading } from "@/components/atoms/Heading";
 import { Link } from "@/components/atoms/Link";
 import { Tag } from "@/components/atoms/Tag";
@@ -48,6 +49,9 @@ export function ProjectCard({ project }: ProjectCardProps) {
         <div className="mt-auto pt-2">
           <ProjectStats project={project} />
         </div>
+        <span aria-hidden="true" className={`${buttonClass("secondary")} mt-1 w-full justify-center`}>
+          Ver detalles
+        </span>
       </div>
     </article>
   );

@@ -134,7 +134,7 @@ check('proyectos: lista de estados exacta', JSON.stringify(datosProyectos.estado
 const proyectos = Array.isArray(datosProyectos.proyectos) ? datosProyectos.proyectos : []
 const prohibidasProyectos = llavesProhibidas(datosProyectos)
 check('proyectos: ninguna llave de autor, correo, usuario o teléfono', prohibidasProyectos.length === 0, prohibidasProyectos.join(','))
-const LLAVES_PROYECTO = ['slug', 'titulo', 'resumen', 'estado', 'avance', 'inicio', 'fin', 'presupuesto', 'aliados', 'categorias', 'imagen', 'contenido']
+const LLAVES_PROYECTO = ['slug', 'titulo', 'resumen', 'estado', 'avance', 'inicio', 'fin', 'presupuesto', 'ubicacion', 'participantes', 'aliados', 'categorias', 'imagen', 'contenido']
 check(
   'proyectos: cada proyecto tiene exactamente las llaves del contrato',
   proyectos.every(
@@ -151,6 +151,9 @@ check(
   proyectos.every(
     (p) =>
       ESTADOS.some((e) => e.valor === p.estado) &&
+      typeof p.ubicacion === 'string' &&
+      Number.isInteger(p.participantes) &&
+      p.participantes >= 0 &&
       Number.isInteger(p.avance) &&
       p.avance >= 0 &&
       p.avance <= 100 &&
@@ -188,6 +191,8 @@ check(
     parque.fin === '2024-12-31' &&
     parque.presupuesto.total === 120000000 &&
     parque.presupuesto.ejecutado === 72000000 &&
+    parque.ubicacion === 'Vereda de prueba' &&
+    parque.participantes === 45 &&
     parque.aliados === 'Aliado de prueba Uno, Aliado de prueba Dos' &&
     JSON.stringify(parque.categorias) === JSON.stringify([{ slug: 'obras-de-prueba', nombre: 'Obras de prueba' }]) &&
     parque.imagen !== null &&
@@ -196,6 +201,8 @@ check(
 )
 const sinDatos = proyectos.find((p) => p.slug === 'proyecto-de-prueba-huerta')
 check('proyectos: la huerta no tiene fin ni presupuesto', sinDatos?.fin === '' && sinDatos.presupuesto.total === 0 && sinDatos.imagen === null, JSON.stringify(sinDatos))
+const cancha = proyectos.find((p) => p.slug === 'proyecto-de-prueba-cancha')
+check('proyectos: la cancha no tiene ubicación ni participantes', cancha?.ubicacion === '' && cancha.participantes === 0, JSON.stringify(cancha))
 check('proyectos: tres proyectos en tres estados', proyectos.length === 3 && new Set(proyectos.map((p) => p.estado)).size === 3, String(proyectos.length))
 
 const nombres = todos.map((d) => d.nombre)
@@ -341,6 +348,21 @@ try {
       proyectoPublico.imagen !== null,
     JSON.stringify(proyectoPublico),
   )
+  // WordPress rechaza con 400 un texto en un campo entero, y el valor guardado no cambia.
+  for (const [invalido, estadoEsperado, guardado] of [[-5, 200, 0], ['abc', 400, 7]]) {
+    await pedir(`/wp-json/wp/v2/jw_proyecto/${proyectoId}`, { method: 'POST', headers: auth, body: JSON.stringify({ meta: { jw_participantes: 7 } }) })
+    const { res: escrito, texto: cuerpoEscrito } = await pedir(`/wp-json/wp/v2/jw_proyecto/${proyectoId}`, {
+      method: 'POST',
+      headers: auth,
+      body: JSON.stringify({ meta: { jw_participantes: invalido } }),
+    })
+    const { texto: cuerpoLeido } = await pedir('/wp-json/jac-web/v1/proyectos')
+    let leido
+    try {
+      leido = JSON.parse(cuerpoLeido).proyectos.find((p) => p.slug === 'proyecto-de-prueba-rest')
+    } catch {}
+    check(`participantes ${JSON.stringify(invalido)} por REST: ${estadoEsperado} y queda en ${guardado}`, escrito.status === estadoEsperado && leido?.participantes === guardado, `${escrito.status} ${cuerpoEscrito.slice(0, 200)}`)
+  }
   const avancesRest = categoriaAvances('proyecto-de-prueba-rest')
   check('publicar por REST crea la categoría de avances, hija de proyectos', avancesRest.n === 1 && avancesRest.padre === avancesRest.proyectos, JSON.stringify(avancesRest))
 } finally {

@@ -111,6 +111,14 @@ function jw_registrar_proyectos(): void {
             'sanitize_callback' => static fn($v): int => jw_entero($v, 0, JW_PRESUPUESTO_MAX),
         ] + $meta);
     }
+    register_post_meta('jw_proyecto', 'jw_ubicacion', $meta + [
+        'sanitize_callback' => static fn($v): string => jw_texto($v, 80),
+    ]);
+    register_post_meta('jw_proyecto', 'jw_participantes', [
+        'type' => 'integer',
+        'default' => 0,
+        'sanitize_callback' => static fn($v): int => jw_entero($v, 0, 1000000),
+    ] + $meta);
     register_post_meta('jw_proyecto', 'jw_aliados', $meta + [
         'sanitize_callback' => static fn($v): string => jw_parrafo($v, 300),
     ]);
@@ -151,7 +159,14 @@ function jw_pintar_caja_proyecto(WP_Post $post): void {
         <input type="number" id="jw_presupuesto_total" name="jw_presupuesto_total" min="0" max="<?php echo esc_attr((string) JW_PRESUPUESTO_MAX); ?>" step="1" value="<?php echo esc_attr((string) $numero('jw_presupuesto_total')); ?>">
         <label for="jw_presupuesto_ejecutado"><strong>Ejecutado (COP)</strong></label>
         <input type="number" id="jw_presupuesto_ejecutado" name="jw_presupuesto_ejecutado" min="0" max="<?php echo esc_attr((string) JW_PRESUPUESTO_MAX); ?>" step="1" value="<?php echo esc_attr((string) $numero('jw_presupuesto_ejecutado')); ?>">
-        <span class="description">Pesos enteros, sin puntos. Con total 0 no se muestra el presupuesto.</span>
+        <span class="description">Pesos enteros, sin puntos. Con total 0 la tarjeta dice "Por definir".</span>
+    </p>
+    <p>
+        <label for="jw_ubicacion"><strong>Ubicación</strong></label>
+        <input type="text" id="jw_ubicacion" name="jw_ubicacion" class="regular-text" maxlength="80" value="<?php echo esc_attr((string) get_post_meta($post->ID, 'jw_ubicacion', true)); ?>">
+        <label for="jw_participantes"><strong>Participantes</strong></label>
+        <input type="number" id="jw_participantes" name="jw_participantes" min="0" max="1000000" step="1" value="<?php echo esc_attr((string) $numero('jw_participantes')); ?>">
+        <span class="description">Sin dato, la tarjeta dice "Por definir". Con participantes 0 también.</span>
     </p>
     <p>
         <label for="jw_aliados"><strong>Aliados y fuentes</strong></label><br>
@@ -165,7 +180,7 @@ function jw_guardar_proyecto(int $id): void {
     if (!jw_guardar_caja($id, 'jw_proyecto_guardar', 'jw_proyecto_nonce')) {
         return;
     }
-    foreach (['jw_estado', 'jw_avance', 'jw_inicio', 'jw_fin', 'jw_presupuesto_total', 'jw_presupuesto_ejecutado', 'jw_aliados'] as $clave) {
+    foreach (['jw_estado', 'jw_avance', 'jw_inicio', 'jw_fin', 'jw_presupuesto_total', 'jw_presupuesto_ejecutado', 'jw_ubicacion', 'jw_participantes', 'jw_aliados'] as $clave) {
         $valor = isset($_POST[$clave]) ? wp_unslash($_POST[$clave]) : '';
         update_post_meta($id, $clave, $valor);
     }

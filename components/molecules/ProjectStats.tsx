@@ -1,13 +1,20 @@
+import { Icon } from "@/components/atoms/Icon";
 import { ProgressBar } from "@/components/atoms/ProgressBar";
 import { Tag } from "@/components/atoms/Tag";
-import { STATUS_TONES, dateRange, formatCOP } from "@/lib/projects";
+import { STATUS_TONES, TBD, formatCOP, participantsText, periodText } from "@/lib/projects";
 import type { Project } from "@/lib/types";
 
 type ProjectStatsProps = { project: Project; withTags?: boolean };
 
 export function ProjectStats({ project, withTags = false }: ProjectStatsProps) {
-  const { status, categories, progress, start, end, budget, partners } = project;
-  const dates = dateRange(start, end);
+  const { status, categories, progress, start, end, budget, partners, location, participants } =
+    project;
+  const funded = budget.total > 0;
+  const rows = [
+    { icon: "pin", label: "Ubicación", text: location || TBD },
+    { icon: "calendar", label: "Período", text: periodText(status.slug, start, end) },
+    { icon: "users", label: "Participantes", text: participantsText(participants) },
+  ] as const;
   return (
     <div className="flex flex-col gap-3">
       {withTags && (
@@ -19,27 +26,37 @@ export function ProjectStats({ project, withTags = false }: ProjectStatsProps) {
         </div>
       )}
       <ProgressBar value={progress} />
-      {dates && <p className="text-sm text-muted">{dates}</p>}
-      {budget.total > 0 ? (
-        <dl className="flex flex-col gap-2 rounded-xl border border-line bg-paper p-4 text-sm">
+      <div className="flex flex-col gap-2 rounded-xl border border-line bg-paper p-4 text-sm">
+        <p className="flex items-center gap-2 font-semibold">
+          <Icon name="coins" className="size-4" />
+          Presupuesto
+        </p>
+        <dl className="flex flex-col gap-2">
           <div className="flex justify-between gap-4">
             <dt className="text-muted">Total</dt>
-            <dd className="font-semibold">{formatCOP(budget.total)}</dd>
+            <dd className="font-semibold">{funded ? formatCOP(budget.total) : TBD}</dd>
           </div>
           <div className="flex justify-between gap-4">
             <dt className="text-muted">Ejecutado</dt>
-            <dd className="font-semibold text-leaf-deep">{formatCOP(budget.executed)}</dd>
+            <dd className={`font-semibold ${funded ? "text-leaf-deep" : ""}`.trim()}>
+              {funded ? formatCOP(budget.executed) : TBD}
+            </dd>
           </div>
-          {partners && (
-            <div className="border-t border-line pt-2">
-              <dt className="text-muted">Fuentes</dt>
-              <dd>{partners}</dd>
-            </div>
-          )}
+          <div className="flex justify-between gap-4 border-t border-line pt-2">
+            <dt className="text-muted">Fuentes</dt>
+            <dd className="text-right">{partners || TBD}</dd>
+          </div>
         </dl>
-      ) : (
-        partners && <p className="text-sm text-muted">Aliados: {partners}</p>
-      )}
+      </div>
+      <ul className="flex flex-col gap-2 text-sm text-muted">
+        {rows.map(({ icon, label, text }) => (
+          <li key={icon} className="flex items-center gap-2">
+            <Icon name={icon} className="size-4 shrink-0" />
+            <span className="sr-only">{label}: </span>
+            {text}
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

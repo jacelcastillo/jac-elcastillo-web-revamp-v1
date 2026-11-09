@@ -25,6 +25,8 @@ export type Project = {
   start: string;
   end: string;
   budget: { total: number; executed: number };
+  location: string;
+  participants: number;
   partners: string;
   categories: Category[];
   image?: Img;

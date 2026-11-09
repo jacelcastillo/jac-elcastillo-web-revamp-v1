@@ -111,7 +111,7 @@ lib/
   html.ts               clean(), text(), isSlug(), truncate()
   images.ts             optimizeImages(): imágenes del contenido por /_next/image
   listing.ts            validación de ?categoria, ?estado y ?page
-  projects.ts           toProjectsPage(), filterProjects(), categoriesOf(), dateRange(), formatCOP()
+  projects.ts           toProjectsPage(), filterProjects(), categoriesOf(), periodText(), participantsText(), formatCOP()
   cms/projects.ts       getProjectsPage(): proyectos y estados
   paths.ts              pathOf(), pickByPath() y sortChildren(): rutas anidadas de páginas hijas
   site.ts               datos fijos: nombre, contacto, menú, comités
@@ -251,7 +251,7 @@ En Proyectos → Añadir nuevo:
 
 - **Título y contenido:** el nombre y la ficha (Editor clásico). El **resumen** es el extracto y la **portada** es la imagen destacada.
 - **Categorías de proyecto:** casillas propias de los proyectos, que alimentan el filtro.
-- **Datos del proyecto:** estado (En planificación, En progreso, Completado o Suspendido), avance de 0 a 100, fechas de inicio y fin opcionales, presupuesto total y ejecutado en pesos enteros (con total 0 no se muestra el presupuesto) y aliados de hasta 300 caracteres.
+- **Datos del proyecto:** estado (En planificación, En progreso, Completado o Suspendido), avance de 0 a 100, fechas de inicio y fin opcionales, ubicación (hasta 80 caracteres), participantes (entero desde 0), presupuesto total y ejecutado en pesos enteros, y aliados de hasta 300 caracteres. Toda tarjeta muestra siempre las mismas filas: lo que no tiene dato dice "Por definir" (ubicación vacía, participantes 0, presupuesto total 0, aliados vacío), y el período se escribe según el estado, por ejemplo "Inicio por definir" o "En curso hasta dic 2024".
 - **Orden:** menor primero, y luego por título.
 - **Avances:** al publicar un proyecto se crea la categoría de entradas con su mismo slug, hija de la categoría `proyectos` si existe. Las entradas publicadas en ella salen como avances en la ficha.
 
@@ -262,7 +262,8 @@ El tipo `project` de Divi queda oculto. Un borrador o un proyecto con contraseñ
 ```json
 { "estados": [ { "valor": "planificacion", "nombre": "En planificación" } ],
   "proyectos": [ { "slug": "...", "titulo": "...", "resumen": "...", "estado": "progreso", "avance": 60,
-    "inicio": "2024-03-01", "fin": "", "presupuesto": { "total": 0, "ejecutado": 0 }, "aliados": "",
+    "inicio": "2024-03-01", "fin": "", "presupuesto": { "total": 0, "ejecutado": 0 },
+    "ubicacion": "", "participantes": 0, "aliados": "",
     "categorias": [ { "slug": "obras", "nombre": "Obras" } ],
     "imagen": { "url": "...", "ancho": 800, "alto": 500 }, "contenido": "<p>...</p>" } ] }
 ```

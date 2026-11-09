@@ -102,6 +102,9 @@ function jw_prueba_proyecto(string $titulo, array $categorias, array $meta, arra
         'posts_per_page' => 1,
     ]);
     if ($existe) {
+        foreach ($meta as $clave => $valor) {
+            update_post_meta($existe[0], $clave, $valor);
+        }
         return $existe[0];
     }
     $id = wp_insert_post($extra + [
@@ -166,12 +169,16 @@ $parque = jw_prueba_proyecto('Proyecto de prueba Parque', ['Obras de prueba'], [
     'jw_fin' => '2024-12-31',
     'jw_presupuesto_total' => 120000000,
     'jw_presupuesto_ejecutado' => 72000000,
+    'jw_ubicacion' => 'Vereda de prueba',
+    'jw_participantes' => 45,
     'jw_aliados' => 'Aliado de prueba Uno, Aliado de prueba Dos',
 ]);
 jw_prueba_proyecto('Proyecto de prueba Huerta', ['Ambiente de prueba'], [
     'jw_estado' => 'planificacion',
     'jw_avance' => 10,
     'jw_inicio' => '2025-06-15',
+    'jw_ubicacion' => 'Salón comunal de prueba',
+    'jw_participantes' => 1,
     'jw_aliados' => 'Aliado de prueba Tres',
 ], ['menu_order' => 1]);
 jw_prueba_proyecto('Proyecto de prueba Cancha', ['Obras de prueba', 'Ambiente de prueba'], [
