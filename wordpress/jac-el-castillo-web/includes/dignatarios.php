@@ -14,15 +14,10 @@ const JW_CARGOS = [
 ];
 
 add_action('init', 'jw_registrar_dignatarios');
-add_action('after_setup_theme', 'jw_soportar_fotos');
 add_action('add_meta_boxes', 'jw_agregar_caja_dignatario');
 add_action('save_post_jw_dignatario', 'jw_guardar_dignatario');
 add_filter('manage_jw_dignatario_posts_columns', 'jw_columnas_dignatario');
 add_action('manage_jw_dignatario_posts_custom_column', 'jw_pintar_columna_dignatario', 10, 2);
-
-function jw_soportar_fotos(): void {
-    add_theme_support('post-thumbnails', ['jw_dignatario']);
-}
 
 function jw_periodo(mixed $valor): string {
     $texto = is_string($valor) ? trim($valor) : '';

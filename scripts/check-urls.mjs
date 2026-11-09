@@ -15,11 +15,18 @@ async function wpPaths(type) {
   return paths;
 }
 
+async function projectPaths() {
+  const res = await fetch(`${wp}/wp-json/jac-web/v1/proyectos`, { signal: AbortSignal.timeout(30000) });
+  if (res.status === 404) return [];
+  if (!res.ok) throw new Error(`WordPress proyectos: ${res.status}`);
+  return (await res.json()).proyectos.map((p) => `/proyectos/${p.slug}/`);
+}
+
 const wpUrls = [...new Set([...(await wpPaths("posts")), ...(await wpPaths("pages"))])];
 
 const checks = [
-  ...["/", "/noticias/", "/comites/", "/contacto/", "/robots.txt", ...wpUrls].map((p) => [[200], p]),
-  ...["/x%3F_fields%3Dauthor/", "/no-existe-este-slug/", "/noticias/?categoria=%3Cscript%3E", "/noticias/?page=-1"].map((p) => [[404], p]),
+  ...["/", "/noticias/", "/comites/", "/proyectos/", "/contacto/", "/robots.txt", ...wpUrls, ...(await projectPaths())].map((p) => [[200], p]),
+  ...["/x%3F_fields%3Dauthor/", "/no-existe-este-slug/", "/noticias/?categoria=%3Cscript%3E", "/noticias/?page=-1", "/proyectos/no-existe/", "/proyectos/?estado=x"].map((p) => [[404], p]),
   [[400, 404], "/..%2Fusers/"],
   [[400], "/_next/image/?url=https%3A%2F%2Fevil.com%2Fx.png&w=640&q=75"],
 ];

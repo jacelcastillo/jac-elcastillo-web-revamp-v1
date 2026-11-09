@@ -16,6 +16,21 @@ export type Entry = Summary & {
   html: SafeHtml;
   children?: Summary[];
 };
+export type Project = {
+  slug: string;
+  title: string;
+  summary: string;
+  status: Category;
+  progress: number;
+  start: string;
+  end: string;
+  budget: { total: number; executed: number };
+  partners: string;
+  categories: Category[];
+  image?: Img;
+  html: SafeHtml;
+};
+export type ProjectsPage = { statuses: Category[]; projects: Project[] };
 export type NavItem = { label: string; href: string };
 export type NavGroup = { label: string; items: NavItem[] };
 export type NavEntry = NavItem | NavGroup;

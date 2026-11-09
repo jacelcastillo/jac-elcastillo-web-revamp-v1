@@ -5,13 +5,13 @@ const TERM = /^\d{4}-\d{4}$/;
 
 export const isTerm = (slug: string) => TERM.test(slug);
 
-const isRecord = (value: unknown): value is Record<string, unknown> =>
+export const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
 const isSize = (value: unknown): value is number =>
   typeof value === "number" && Number.isFinite(value) && value > 0;
 
-function toPhoto(raw: unknown): Img | undefined {
+export function toPhoto(raw: unknown): Img | undefined {
   if (!isRecord(raw)) return undefined;
   const { url, ancho, alto } = raw;
   if (typeof url !== "string" || !url.startsWith(UPLOADS)) return undefined;

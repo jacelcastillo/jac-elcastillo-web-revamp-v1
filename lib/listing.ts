@@ -2,6 +2,9 @@ import { isSlug } from "./html.ts";
 
 type Params = Record<string, string | string[] | undefined>;
 
+const isSlugParam = (value: string | string[] | undefined): value is string | undefined =>
+  value === undefined || (typeof value === "string" && isSlug(value));
+
 export function parseListingQuery(
   params: Params,
 ): { page: number; categoria?: string } | null {
@@ -9,18 +12,25 @@ export function parseListingQuery(
   if (page !== undefined && (typeof page !== "string" || !/^[1-9]\d{0,2}$/.test(page))) {
     return null;
   }
-  if (categoria !== undefined && (typeof categoria !== "string" || !isSlug(categoria))) {
-    return null;
-  }
+  if (!isSlugParam(categoria)) return null;
   return { page: page === undefined ? 1 : Number(page), categoria };
+}
+
+export function parseProjectQuery(
+  params: Params,
+): { categoria?: string; estado?: string } | null {
+  const { categoria, estado } = params;
+  if (!isSlugParam(categoria) || !isSlugParam(estado)) return null;
+  return { categoria, estado };
 }
 
 export function listingHref(
   base: string,
-  { page, categoria }: { page?: number; categoria?: string },
+  { page, categoria, estado }: { page?: number; categoria?: string; estado?: string },
 ): string {
   const query = new URLSearchParams();
   if (categoria) query.set("categoria", categoria);
+  if (estado) query.set("estado", estado);
   if (page && page > 1) query.set("page", String(page));
   const qs = query.toString();
   return qs ? `${base}?${qs}` : base;

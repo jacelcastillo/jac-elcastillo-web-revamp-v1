@@ -6,6 +6,22 @@ function jw_texto(mixed $valor, int $max): string {
     return mb_substr($texto, 0, $max);
 }
 
+function jw_parrafo(mixed $valor, int $max): string {
+    $texto = sanitize_textarea_field(is_scalar($valor) ? (string) $valor : '');
+    return mb_substr($texto, 0, $max);
+}
+
+function jw_fecha(mixed $valor): string {
+    if (!is_string($valor) || !preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $valor, $m)) {
+        return '';
+    }
+    return checkdate((int) $m[2], (int) $m[3], (int) $m[1]) ? $valor : '';
+}
+
+function jw_entero(mixed $valor, int $min, int $max): int {
+    return is_numeric($valor) ? max($min, min($max, (int) $valor)) : $min;
+}
+
 function jw_enum(mixed $valor, array $permitidos, string $defecto): string {
     return is_string($valor) && in_array($valor, $permitidos, true) ? $valor : $defecto;
 }

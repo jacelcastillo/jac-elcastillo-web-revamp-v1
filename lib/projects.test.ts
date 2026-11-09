@@ -1,0 +1,142 @@
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { categoriesOf, dateRange, filterProjects, formatCOP, toProjectsPage } from "./projects.ts";
+import { listingHref, parseProjectQuery } from "./listing.ts";
+
+const UPLOAD = "https://jacelcastillo.com.co/wp-content/uploads/2026/01/portada.jpg";
+
+const estados = [
+  { valor: "planificacion", nombre: "En planificación" },
+  { valor: "progreso", nombre: "En progreso" },
+];
+
+const project = (extra: Record<string, unknown> = {}) => ({
+  slug: "proyecto-de-prueba",
+  titulo: "Proyecto de prueba",
+  resumen: "Resumen de prueba",
+  estado: "progreso",
+  avance: 40,
+  inicio: "2024-03-01",
+  fin: "",
+  presupuesto: { total: 1000, ejecutado: 400 },
+  aliados: "Aliado de prueba Uno,\nAliado de prueba Dos",
+  categorias: [{ slug: "obras", nombre: "Obras" }],
+  imagen: null,
+  contenido: "<p>Texto de prueba</p>",
+  ...extra,
+});
+
+const page = (...proyectos: unknown[]) => toProjectsPage({ estados, proyectos });
+
+test("valid input maps to statuses and projects", () => {
+  const { statuses, projects } = page(project({ imagen: { url: UPLOAD, ancho: 800, alto: 500 } }));
+  assert.deepEqual(statuses, [
+    { slug: "planificacion", name: "En planificación" },
+    { slug: "progreso", name: "En progreso" },
+  ]);
+  const [p] = projects;
+  assert.equal(p.slug, "proyecto-de-prueba");
+  assert.equal(p.title, "Proyecto de prueba");
+  assert.deepEqual(p.status, { slug: "progreso", name: "En progreso" });
+  assert.equal(p.progress, 40);
+  assert.equal(p.start, "2024-03-01");
+  assert.equal(p.end, "");
+  assert.deepEqual(p.budget, { total: 1000, executed: 400 });
+  assert.equal(p.partners, "Aliado de prueba Uno, Aliado de prueba Dos");
+  assert.deepEqual(p.categories, [{ slug: "obras", name: "Obras" }]);
+  assert.deepEqual(p.image, { src: UPLOAD, alt: "", width: 800, height: 500 });
+  assert.match(p.html, /<p>Texto de prueba<\/p>/);
+});
+
+test("garbage input gives empty pages", () => {
+  for (const input of [null, undefined, "x", 3, [], {}, { estados: 1, proyectos: 1 }]) {
+    assert.deepEqual(toProjectsPage(input), { statuses: [], projects: [] });
+  }
+});
+
+test("malformed projects are dropped", () => {
+  const bad = [
+    null,
+    "x",
+    project({ slug: "Bad Slug" }),
+    project({ slug: 5 }),
+    project({ titulo: " " }),
+    project({ estado: "desconocido" }),
+  ];
+  assert.deepEqual(page(...bad, project()).projects.length, 1);
+});
+
+test("numbers, dates and lists fall back to empty values", () => {
+  const [p] = page(
+    project({
+      avance: 250,
+      inicio: "marzo",
+      fin: 5,
+      presupuesto: { total: -1, ejecutado: "9" },
+      categorias: [null, { slug: "A B", nombre: "x" }, { slug: "ok", nombre: "" }],
+      imagen: { url: "https://example.invalid/a.jpg", ancho: 1, alto: 1 },
+    }),
+  ).projects;
+  assert.equal(p.progress, 100);
+  assert.equal(p.start, "");
+  assert.equal(p.end, "");
+  assert.deepEqual(p.budget, { total: 0, executed: 0 });
+  assert.deepEqual(p.categories, []);
+  assert.equal(p.image, undefined);
+  assert.equal(page(project({ presupuesto: null })).projects[0].budget.total, 0);
+});
+
+test("filterProjects combines estado and categoria", () => {
+  const { projects } = page(
+    project({ slug: "uno" }),
+    project({ slug: "dos", estado: "planificacion", categorias: [{ slug: "ambiente", nombre: "Ambiente" }] }),
+    project({ slug: "tres", categorias: [] }),
+  );
+  const slugs = (q: { categoria?: string; estado?: string }) => filterProjects(projects, q).map((p) => p.slug);
+  assert.deepEqual(slugs({}), ["uno", "dos", "tres"]);
+  assert.deepEqual(slugs({ estado: "progreso" }), ["uno", "tres"]);
+  assert.deepEqual(slugs({ categoria: "ambiente" }), ["dos"]);
+  assert.deepEqual(slugs({ categoria: "obras", estado: "planificacion" }), []);
+});
+
+test("categoriesOf lists each category once, sorted in Spanish", () => {
+  const { projects } = page(
+    project({ categorias: [{ slug: "obras", nombre: "Obras" }, { slug: "ambiente", nombre: "Ambiente" }] }),
+    project({ categorias: [{ slug: "obras", nombre: "Obras" }, { slug: "cultura", nombre: "Ñandú" }] }),
+  );
+  assert.deepEqual(categoriesOf(projects).map((c) => c.name), ["Ambiente", "Ñandú", "Obras"]);
+  assert.deepEqual(categoriesOf([]), []);
+});
+
+test("dateRange formats month and year without shifting the day", () => {
+  assert.equal(dateRange("2024-03-01", "2024-12-31"), "mar 2024 a dic 2024");
+  assert.equal(dateRange("2024-03-01"), "Desde mar 2024");
+  assert.equal(dateRange("", "2024-12-31"), "Hasta dic 2024");
+  assert.equal(dateRange(), "");
+  assert.equal(dateRange("", ""), "");
+  assert.equal(dateRange("2025-01-01", "2025-01-31"), "ene 2025 a ene 2025");
+});
+
+test("formatCOP uses es-CO pesos without decimals", () => {
+  assert.equal(formatCOP(1500000).replace(/\s/g, " "), "$ 1.500.000");
+  assert.equal(formatCOP(0).replace(/\s/g, " "), "$ 0");
+});
+
+test("parseProjectQuery accepts slugs only", () => {
+  assert.deepEqual(parseProjectQuery({}), { categoria: undefined, estado: undefined });
+  assert.deepEqual(parseProjectQuery({ categoria: "obras", estado: "progreso" }), {
+    categoria: "obras",
+    estado: "progreso",
+  });
+  for (const params of [{ estado: "<x>" }, { estado: "" }, { estado: ["a", "b"] }, { categoria: "A B" }]) {
+    assert.equal(parseProjectQuery(params), null, JSON.stringify(params));
+  }
+});
+
+test("listingHref keeps estado with categoria", () => {
+  assert.equal(listingHref("/proyectos/", { estado: "progreso" }), "/proyectos/?estado=progreso");
+  assert.equal(
+    listingHref("/proyectos/", { categoria: "obras", estado: "progreso" }),
+    "/proyectos/?categoria=obras&estado=progreso",
+  );
+});

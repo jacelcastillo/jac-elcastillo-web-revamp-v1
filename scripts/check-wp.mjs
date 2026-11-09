@@ -11,6 +11,12 @@ if (!base) {
 }
 
 const CARGOS = ['presidencia', 'vicepresidencia', 'tesoreria', 'secretaria', 'fiscalia', 'conciliacion', 'delegacion', 'coordinacion', 'otro']
+const ESTADOS = [
+  { valor: 'planificacion', nombre: 'En planificación' },
+  { valor: 'progreso', nombre: 'En progreso' },
+  { valor: 'completado', nombre: 'Completado' },
+  { valor: 'suspendido', nombre: 'Suspendido' },
+]
 const raiz = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 let fallos = 0
 
@@ -117,12 +123,80 @@ const { res: crearAnonimo } = await pedir('/wp-json/wp/v2/jw_dignatario', {
 })
 check('/wp-json/wp/v2/jw_dignatario anónimo: POST da 401', crearAnonimo.status === 401, String(crearAnonimo.status))
 
+const { res: resProyectos, texto: cuerpoProyectos } = await pedir('/wp-json/jac-web/v1/proyectos')
+check('proyectos: status 200', resProyectos.status === 200, String(resProyectos.status))
+let datosProyectos = {}
+try {
+  datosProyectos = JSON.parse(cuerpoProyectos)
+} catch {}
+check('proyectos: llaves de primer nivel estados y proyectos', mismasLlaves(datosProyectos, ['estados', 'proyectos']), Object.keys(datosProyectos).join(','))
+check('proyectos: lista de estados exacta', JSON.stringify(datosProyectos.estados) === JSON.stringify(ESTADOS), JSON.stringify(datosProyectos.estados))
+const proyectos = Array.isArray(datosProyectos.proyectos) ? datosProyectos.proyectos : []
+const prohibidasProyectos = llavesProhibidas(datosProyectos)
+check('proyectos: ninguna llave de autor, correo, usuario o teléfono', prohibidasProyectos.length === 0, prohibidasProyectos.join(','))
+const LLAVES_PROYECTO = ['slug', 'titulo', 'resumen', 'estado', 'avance', 'inicio', 'fin', 'presupuesto', 'aliados', 'categorias', 'imagen', 'contenido']
+check(
+  'proyectos: cada proyecto tiene exactamente las llaves del contrato',
+  proyectos.every(
+    (p) =>
+      mismasLlaves(p, LLAVES_PROYECTO) &&
+      mismasLlaves(p.presupuesto, ['total', 'ejecutado']) &&
+      Array.isArray(p.categorias) &&
+      p.categorias.every((c) => mismasLlaves(c, ['slug', 'nombre'])) &&
+      (p.imagen === null || mismasLlaves(p.imagen, ['url', 'ancho', 'alto'])),
+  ),
+)
+check(
+  'proyectos: estado válido, avance de 0 a 100 y fechas vacías o AAAA-MM-DD',
+  proyectos.every(
+    (p) =>
+      ESTADOS.some((e) => e.valor === p.estado) &&
+      Number.isInteger(p.avance) &&
+      p.avance >= 0 &&
+      p.avance <= 100 &&
+      [p.inicio, p.fin].every((f) => f === '' || /^\d{4}-\d{2}-\d{2}$/.test(f)),
+  ),
+)
+
+const { res: crearProyectoAnonimo } = await pedir('/wp-json/wp/v2/jw_proyecto', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ title: 'Anónimo', status: 'publish' }),
+})
+check('/wp-json/wp/v2/jw_proyecto anónimo: POST da 401', crearProyectoAnonimo.status === 401, String(crearProyectoAnonimo.status))
+
 if (prod) {
   console.log(`${fallos ? 'FAIL' : 'OK'} producción: ${fallos} fallos`)
   process.exit(fallos ? 1 : 0)
 }
 
 check('Cache-Control con max-age=300', /max-age=300/.test(res.headers.get('cache-control') ?? ''), res.headers.get('cache-control') ?? '')
+
+check('proyectos: Cache-Control con max-age=300', /max-age=300/.test(resProyectos.headers.get('cache-control') ?? ''), resProyectos.headers.get('cache-control') ?? '')
+check('proyectos: no aparece el borrador', !proyectos.some((p) => p.titulo === 'Proyecto de prueba Borrador'))
+check(
+  'proyectos: orden por Orden y título',
+  proyectos.map((p) => p.titulo.replace('Proyecto de prueba ', '')).join(',') === 'Parque,Huerta,Cancha',
+  proyectos.map((p) => p.titulo).join(','),
+)
+const parque = proyectos.find((p) => p.slug === 'proyecto-de-prueba-parque')
+check(
+  'proyectos: el parque trae sus campos, categoría, imagen y contenido',
+  parque?.estado === 'progreso' &&
+    parque.avance === 60 &&
+    parque.inicio === '2024-03-01' &&
+    parque.fin === '2024-12-31' &&
+    parque.presupuesto.total === 120000000 &&
+    parque.presupuesto.ejecutado === 72000000 &&
+    parque.aliados === 'Aliado de prueba Uno, Aliado de prueba Dos' &&
+    JSON.stringify(parque.categorias) === JSON.stringify([{ slug: 'obras-de-prueba', nombre: 'Obras de prueba' }]) &&
+    parque.imagen !== null &&
+    parque.contenido.includes('<p>'),
+  JSON.stringify(parque),
+)
+const sinDatos = proyectos.find((p) => p.slug === 'proyecto-de-prueba-huerta')
+check('proyectos: la huerta no tiene fin ni presupuesto', sinDatos?.fin === '' && sinDatos.presupuesto.total === 0 && sinDatos.imagen === null, JSON.stringify(sinDatos))
+check('proyectos: tres proyectos en tres estados', proyectos.length === 3 && new Set(proyectos.map((p) => p.estado)).size === 3, String(proyectos.length))
 
 const nombres = todos.map((d) => d.nombre)
 for (const excluido of ['Borrador', 'Sin período', 'Protegida']) {
@@ -156,6 +230,40 @@ const wp = (...argv) =>
 const editor = wp('eval', "echo use_block_editor_for_post_type('jw_dignatario') ? 'si' : 'no';")
 check('jw_dignatario usa el editor clásico', editor.stdout?.trim() === 'no', (editor.stdout ?? '') + (editor.stderr ?? ''))
 
+const divi = wp(
+  'eval',
+  "echo wp_json_encode([jw_ocultar_project_divi(['show_ui' => true, 'show_in_menu' => true, 'show_in_nav_menus' => true, 'show_in_rest' => true, 'public' => true], 'project'), jw_ocultar_project_divi(['show_ui' => true], 'post')]);",
+)
+let hechos = []
+try {
+  hechos = JSON.parse(divi.stdout)
+} catch {}
+check(
+  'el filtro oculta el project de Divi y no toca otros tipos',
+  hechos[0]?.show_ui === false &&
+    hechos[0].show_in_menu === false &&
+    hechos[0].show_in_nav_menus === false &&
+    hechos[0].show_in_rest === false &&
+    hechos[0].public === true &&
+    hechos[1]?.show_ui === true,
+  divi.stdout ?? '',
+)
+
+const categoriaAvances = (slug) => {
+  const salida = wp(
+    'eval',
+    `$t = get_terms(['taxonomy' => 'category', 'slug' => '${slug}', 'hide_empty' => false]); $p = get_term_by('slug', 'proyectos', 'category'); echo wp_json_encode(['n' => count($t), 'padre' => $t ? $t[0]->parent : -1, 'proyectos' => $p ? $p->term_id : -2]);`,
+  )
+  try {
+    return JSON.parse(salida.stdout)
+  } catch {
+    return { n: -1, padre: -1, proyectos: -2 }
+  }
+}
+const avancesParque = categoriaAvances('proyecto-de-prueba-parque')
+check('categoría de avances del parque: una sola, hija de proyectos', avancesParque.n === 1 && avancesParque.padre === avancesParque.proyectos, JSON.stringify(avancesParque))
+check('el borrador no crea categoría de avances', categoriaAvances('proyecto-de-prueba-borrador').n === 0)
+
 const fotoPrueba = wp('post', 'list', '--post_type=attachment', '--meta_key=jw_prueba', '--meta_value=foto', '--field=ID')
 const fotoId = Number(fotoPrueba.stdout?.trim().split('\n')[0])
 const clave = wp('user', 'application-password', 'create', 'admin', 'jw-check', '--porcelain')
@@ -164,6 +272,7 @@ check('contraseña de aplicación creada para el admin local', clave.status === 
 check('existe la foto de prueba', Number.isInteger(fotoId) && fotoId > 0, fotoPrueba.stdout ?? '')
 
 let creadoId = 0
+let proyectoId = 0
 try {
   const auth = { Authorization: `Basic ${Buffer.from(`admin:${contrasena}`).toString('base64')}`, 'Content-Type': 'application/json' }
   const { res: creado, texto: cuerpoCreado } = await pedir('/wp-json/wp/v2/jw_dignatario', {
@@ -197,7 +306,52 @@ try {
       publico.find((p) => p.dignatarios.some((d) => d.id === creadoId))?.periodo === '2026-2030',
     JSON.stringify(creadoPublico),
   )
+
+  const { res: proyectoCreado, texto: cuerpoProyecto } = await pedir('/wp-json/wp/v2/jw_proyecto', {
+    method: 'POST',
+    headers: auth,
+    body: JSON.stringify({
+      title: 'Proyecto de prueba REST',
+      status: 'publish',
+      excerpt: 'Resumen REST',
+      content: '<p>Ficha REST</p>',
+      menu_order: 9,
+      featured_media: fotoId,
+      meta: { jw_estado: 'completado', jw_avance: 150, jw_inicio: '2025-02-30', jw_presupuesto_total: 1000 },
+    }),
+  })
+  check('autenticado: POST crea el proyecto (201)', proyectoCreado.status === 201, `${proyectoCreado.status} ${cuerpoProyecto.slice(0, 200)}`)
+  try {
+    proyectoId = JSON.parse(cuerpoProyecto).id ?? 0
+  } catch {}
+
+  const { texto: cuerpoProyectosNuevo } = await pedir('/wp-json/jac-web/v1/proyectos')
+  let nuevos = []
+  try {
+    nuevos = JSON.parse(cuerpoProyectosNuevo).proyectos
+  } catch {}
+  const proyectoPublico = nuevos.find((p) => p.slug === 'proyecto-de-prueba-rest')
+  check(
+    'el proyecto creado por REST sale en jac-web/v1/proyectos, con avance acotado y fecha inválida vacía',
+    proyectoPublico?.estado === 'completado' &&
+      proyectoPublico.avance === 100 &&
+      proyectoPublico.inicio === '' &&
+      proyectoPublico.presupuesto.total === 1000 &&
+      proyectoPublico.resumen === 'Resumen REST' &&
+      proyectoPublico.imagen !== null,
+    JSON.stringify(proyectoPublico),
+  )
+  const avancesRest = categoriaAvances('proyecto-de-prueba-rest')
+  check('publicar por REST crea la categoría de avances, hija de proyectos', avancesRest.n === 1 && avancesRest.padre === avancesRest.proyectos, JSON.stringify(avancesRest))
 } finally {
+  if (proyectoId) {
+    const { res: borradoProyecto } = await pedir(`/wp-json/wp/v2/jw_proyecto/${proyectoId}?force=true`, {
+      method: 'DELETE',
+      headers: { Authorization: `Basic ${Buffer.from(`admin:${contrasena}`).toString('base64')}` },
+    })
+    check('autenticado: DELETE ?force=true borra el proyecto', borradoProyecto.status === 200, String(borradoProyecto.status))
+  }
+  wp('eval', "$t = get_term_by('slug', 'proyecto-de-prueba-rest', 'category'); if ($t) { wp_delete_term($t->term_id, 'category'); }")
   if (creadoId) {
     const { res: borrado } = await pedir(`/wp-json/wp/v2/jw_dignatario/${creadoId}?force=true`, {
       method: 'DELETE',

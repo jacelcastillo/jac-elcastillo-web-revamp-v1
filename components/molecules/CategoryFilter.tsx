@@ -9,16 +9,20 @@ type CategoryFilterProps = {
   categories: Category[];
   active?: string;
   href: (categoria?: string) => string;
+  label?: string;
+  allLabel?: string;
 };
 
 export function CategoryFilter({
   categories,
   active: activeSlug,
   href,
+  label = "Filtrar por categoría",
+  allLabel = "Todas",
 }: CategoryFilterProps) {
-  const entries = [{ slug: undefined, name: "Todas" }, ...categories];
+  const entries = [{ slug: undefined, name: allLabel }, ...categories];
   return (
-    <nav aria-label="Filtrar por categoría">
+    <nav aria-label={label}>
       <ul className="flex gap-2 overflow-x-auto pb-2">
         {entries.map(({ slug, name }) => {
           const current = slug === activeSlug;

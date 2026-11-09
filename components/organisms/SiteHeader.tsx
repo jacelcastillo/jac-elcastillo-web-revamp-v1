@@ -8,7 +8,7 @@ import { NavLink } from "@/components/molecules/NavLink";
 import { NAV } from "@/lib/site";
 
 const topLinkClass =
-  "rounded-full px-4 py-2 text-lg font-semibold hover:bg-white aria-[current=page]:text-brand";
+  "rounded-full px-3 py-2 font-semibold hover:bg-white aria-[current=page]:text-brand xl:px-4 xl:text-lg";
 const drawerLinkClass =
   "block border-b border-line py-3 text-lg aria-[current=page]:font-semibold aria-[current=page]:text-brand";
 const linkClass =
@@ -40,7 +40,7 @@ export function SiteHeader() {
                   type="button"
                   popoverTarget={id}
                   style={style}
-                  className="anchor-source inline-flex items-center gap-1 rounded-full px-4 py-2 text-lg font-semibold hover:bg-white"
+                  className="anchor-source inline-flex items-center gap-1 rounded-full px-3 py-2 font-semibold hover:bg-white xl:px-4 xl:text-lg"
                 >
                   {entry.label}
                   <Icon name="chevron" />

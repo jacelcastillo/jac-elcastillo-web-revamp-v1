@@ -63,6 +63,7 @@ export const NAV: NavEntry[] = [
       { label: "Comités", href: "/comites/" },
     ],
   },
+  { label: "Proyectos", href: "/proyectos/" },
   { label: "Noticias", href: "/noticias/" },
   {
     label: "Transparencia",

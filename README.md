@@ -18,6 +18,7 @@ Nueva interfaz del sitio de la Junta de Acción Comunal Ciudad Campestre El Cast
     ├─ /wp-json/wp/v2/pages        páginas
     ├─ /wp-json/wp/v2/categories   categorías
     ├─ /wp-json/jac-web/v1/dignatarios   dignatarios de cada período (plugin propio)
+    ├─ /wp-json/jac-web/v1/proyectos     proyectos con estado y categorías (plugin propio)
     └─ /wp-content/uploads/...     imágenes (pasan por /_next/image)
 ```
 
@@ -90,6 +91,8 @@ app/                    rutas (App Router)
   page.tsx              inicio
   noticias/page.tsx     listado de entradas con filtro y paginación
   comites/page.tsx      listado de comités
+  proyectos/page.tsx    proyectos con filtros por categoría y estado
+  proyectos/[slug]/     ficha del proyecto con sus avances
   contacto/page.tsx     contacto (estática)
   [...path]/page.tsx    cualquier entrada o página de WordPress, incluidas las páginas hijas
   robots.ts             Disallow: /
@@ -107,7 +110,9 @@ lib/
   board.ts              toBoardTerms() e isTerm(): valida el JSON de dignatarios
   html.ts               clean(), text(), isSlug(), truncate()
   images.ts             optimizeImages(): imágenes del contenido por /_next/image
-  listing.ts            validación de ?categoria y ?page
+  listing.ts            validación de ?categoria, ?estado y ?page
+  projects.ts           toProjectsPage(), filterProjects(), categoriesOf(), dateRange(), formatCOP()
+  cms/projects.ts       getProjectsPage(): proyectos y estados
   paths.ts              pathOf(), pickByPath() y sortChildren(): rutas anidadas de páginas hijas
   site.ts               datos fijos: nombre, contacto, menú, comités
   types.ts              tipos de dominio (Summary, Entry, SafeHtml...)
@@ -126,6 +131,8 @@ wordpress/              plugin jac-el-castillo-web, WordPress local y datos de p
 | `/` | Hero con accesos a noticias y contacto, últimas 3 noticias, "Quiénes somos" (página `nosotros`) y "Rendición de cuentas" | En cada visita (`force-dynamic`), con los datos de WordPress en caché |
 | `/noticias/` | Entradas, 9 por página. `?categoria=<slug>` filtra y `?page=<n>` pagina | En cada visita (lee `searchParams`), con datos en caché |
 | `/comites/` | Las páginas listadas en `COMMITTEES` de `lib/site.ts` | En cada visita (`force-dynamic`), con datos en caché |
+| `/proyectos/` | Proyectos con filtros `?categoria=<slug>` y `?estado=<valor>`. Un valor que no existe da 404 | En cada visita (`force-dynamic`), con datos en caché |
+| `/proyectos/<slug>/` | Ficha del proyecto, con sus avances (hasta 6 entradas de la categoría con el mismo slug) | ISR |
 | `/contacto/` | Datos de contacto de `lib/site.ts` | Estática, en el build |
 | `/<ruta>/` | Cualquier entrada o página de WordPress en la ruta de su enlace (`link`), incluidas las páginas hijas (`/historia/2022-2026/`). Una página con páginas hijas las lista como tarjetas bajo su contenido. Una página cuyo slug es un período (`AAAA-AAAA`) muestra además su grilla de Dignatarios. Entrar a una página hija por su ruta plana redirige (308) a la anidada | ISR: se genera en la primera visita y se renueva cada 5 minutos |
 | `/robots.txt` | `Disallow: /` mientras sea prototipo | Estática |
@@ -235,6 +242,30 @@ En Dignatarios → Añadir nuevo, una entrada por persona y período:
 Los editores también pueden crear y editar dignatarios por la API REST de WordPress, en `/wp-json/wp/v2/jw_dignatario` (con sesión o contraseña de aplicación). Período, Cargo y Detalle van dentro de `meta`: `jw_periodo`, `jw_cargo` y `jw_detalle`.
 
 Para que un período se vea en el sitio nuevo, debe existir su página como hija de Nuestra historia, con el período como slug (por ejemplo `2026-2030`). Un borrador o una entrada con contraseña no se publica.
+
+### Proyectos
+
+Regla editorial: un **proyecto** lleva ficha, un **avance** es una entrada en la categoría del proyecto y una **actividad suelta** es solo una entrada.
+
+En Proyectos → Añadir nuevo:
+
+- **Título y contenido:** el nombre y la ficha (Editor clásico). El **resumen** es el extracto y la **portada** es la imagen destacada.
+- **Categorías de proyecto:** casillas propias de los proyectos, que alimentan el filtro.
+- **Datos del proyecto:** estado (En planificación, En progreso, Completado o Suspendido), avance de 0 a 100, fechas de inicio y fin opcionales, presupuesto total y ejecutado en pesos enteros (con total 0 no se muestra el presupuesto) y aliados de hasta 300 caracteres.
+- **Orden:** menor primero, y luego por título.
+- **Avances:** al publicar un proyecto se crea la categoría de entradas con su mismo slug, hija de la categoría `proyectos` si existe. Las entradas publicadas en ella salen como avances en la ficha.
+
+El tipo `project` de Divi queda oculto. Un borrador o un proyecto con contraseña no se publica.
+
+`GET /wp-json/jac-web/v1/proyectos`: pública, de solo lectura y con `Cache-Control: public, max-age=300`.
+
+```json
+{ "estados": [ { "valor": "planificacion", "nombre": "En planificación" } ],
+  "proyectos": [ { "slug": "...", "titulo": "...", "resumen": "...", "estado": "progreso", "avance": 60,
+    "inicio": "2024-03-01", "fin": "", "presupuesto": { "total": 0, "ejecutado": 0 }, "aliados": "",
+    "categorias": [ { "slug": "obras", "nombre": "Obras" } ],
+    "imagen": { "url": "...", "ancho": 800, "alto": 500 }, "contenido": "<p>...</p>" } ] }
+```
 
 ### Probarlo en local
 

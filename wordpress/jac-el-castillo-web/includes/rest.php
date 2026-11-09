@@ -9,10 +9,25 @@ function jw_registrar_ruta(): void {
         'callback' => 'jw_dignatarios',
         'permission_callback' => '__return_true',
     ]);
+    register_rest_route('jac-web/v1', '/proyectos', [
+        'methods' => 'GET',
+        'callback' => 'jw_proyectos',
+        'permission_callback' => '__return_true',
+    ]);
 }
 
 function jw_dignatarios(): WP_REST_Response {
     $respuesta = new WP_REST_Response(['periodos' => jw_periodos_publicos()]);
+    $respuesta->header('Cache-Control', 'public, max-age=300');
+    return $respuesta;
+}
+
+function jw_proyectos(): WP_REST_Response {
+    $estados = [];
+    foreach (JW_ESTADOS as $valor => $nombre) {
+        $estados[] = ['valor' => $valor, 'nombre' => $nombre];
+    }
+    $respuesta = new WP_REST_Response(['estados' => $estados, 'proyectos' => jw_proyectos_publicos()]);
     $respuesta->header('Cache-Control', 'public, max-age=300');
     return $respuesta;
 }
@@ -73,4 +88,40 @@ function jw_periodos_publicos(): array {
         ];
     }
     return $periodos;
+}
+
+function jw_proyectos_publicos(): array {
+    $posts = get_posts([
+        'post_type' => 'jw_proyecto',
+        'post_status' => 'publish',
+        'has_password' => false,
+        'posts_per_page' => -1,
+        'no_found_rows' => true,
+        'orderby' => ['menu_order' => 'ASC', 'title' => 'ASC'],
+    ]);
+
+    return array_map(static function (WP_Post $post): array {
+        $meta = static fn(string $clave): mixed => get_post_meta($post->ID, $clave, true);
+        $categorias = wp_get_object_terms($post->ID, 'jw_proyecto_categoria');
+        return [
+            'slug' => $post->post_name,
+            'titulo' => jw_plano($post->post_title),
+            'resumen' => jw_plano($post->post_excerpt),
+            'estado' => jw_enum($meta('jw_estado'), array_keys(JW_ESTADOS), 'planificacion'),
+            'avance' => jw_entero($meta('jw_avance'), 0, 100),
+            'inicio' => jw_fecha($meta('jw_inicio')),
+            'fin' => jw_fecha($meta('jw_fin')),
+            'presupuesto' => [
+                'total' => jw_entero($meta('jw_presupuesto_total'), 0, JW_PRESUPUESTO_MAX),
+                'ejecutado' => jw_entero($meta('jw_presupuesto_ejecutado'), 0, JW_PRESUPUESTO_MAX),
+            ],
+            'aliados' => jw_parrafo(jw_plano($meta('jw_aliados')), 300),
+            'categorias' => is_wp_error($categorias) ? [] : array_map(
+                static fn(WP_Term $t): array => ['slug' => $t->slug, 'nombre' => jw_plano($t->name)],
+                $categorias
+            ),
+            'imagen' => jw_foto($post->ID),
+            'contenido' => apply_filters('the_content', $post->post_content),
+        ];
+    }, $posts);
 }
