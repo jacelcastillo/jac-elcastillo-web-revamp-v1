@@ -2,13 +2,31 @@
 import Link from "next/link";
 import Image from "next/image";
 import { Icon } from "@/components/atoms/Icon";
-import type { ComponentProps } from "react";
+import type { ComponentProps, ReactNode } from "react";
 import type { Img } from "@/lib/types";
 
-export function PreviewCard({ title, text, href, image }: { title: string; text: string; href: string; image?: Img }) {
-  return <Link href={href} onClick={event => { if (href.startsWith("#")) { const panel = document.getElementById(href.slice(1)); if (panel?.hasAttribute("popover")) { event.preventDefault(); panel.showPopover(); } } }} className="flex flex-1 flex-col overflow-hidden rounded-xl border border-line bg-white shadow-sm transition hover:shadow-md">
-    {image && <div className="relative h-40 shrink-0"><Image src={image.src} alt={image.alt} fill sizes="(min-width: 1024px) 30vw, 100vw" className="object-cover" /></div>}
-    <div className="flex-1 p-4"><h3 className="font-display text-xl">{title} <span aria-hidden="true">→</span></h3><p className="mt-1 text-sm text-muted">{text}</p></div>
+export function PreviewCard({ title, text, href, image, media, example = false }: {
+  title: string; text: string; href: string; image?: Img; media?: ReactNode; example?: boolean;
+}) {
+  return <Link href={href} onClick={event => {
+    if (!href.startsWith("#")) return;
+    const panel = document.getElementById(href.slice(1));
+    if (panel?.hasAttribute("popover")) {
+      event.preventDefault();
+      panel.showPopover();
+    }
+  }} className="flex min-w-0 flex-col overflow-hidden rounded-xl border border-line bg-white shadow-sm transition hover:shadow-md">
+    <div className="relative h-40 shrink-0 overflow-hidden bg-leaf/10">
+      {media ?? (image && <Image src={image.src} alt={image.alt} fill sizes="(min-width: 1024px) 25vw, (min-width: 640px) 50vw, 100vw" className="object-cover" />)}
+    </div>
+    <div className="grid flex-1 grid-rows-[auto_auto_1fr] gap-2 p-4">
+      <h3 className="line-clamp-2 min-h-14 font-display text-xl leading-7">{title}</h3>
+      <p className="line-clamp-3 min-h-15 text-sm leading-5 text-muted">{text}</p>
+      <div className="flex min-h-6 items-end justify-between gap-2">
+        <span className="text-xs text-muted">{example ? "Contenido de ejemplo" : ""}</span>
+        <span aria-hidden="true" className="text-leaf-deep">→</span>
+      </div>
+    </div>
   </Link>;
 }
 

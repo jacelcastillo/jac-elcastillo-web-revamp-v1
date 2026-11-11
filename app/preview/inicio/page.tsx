@@ -15,7 +15,7 @@ export default async function Page() {
   return <HomePreviewTemplate
     news={news.status === "fulfilled" ? news.value : []}
     about={pages.status === "fulfilled" ? pages.value[0] : undefined}
-    projects={projects.status === "fulfilled" ? projects.value.projects.slice(0, 3) : []}
+    projects={projects.status === "fulfilled" ? projects.value.projects.slice(0, 4) : []}
     alert={alert.status === "fulfilled" ? alert.value : null}
   />;
 }

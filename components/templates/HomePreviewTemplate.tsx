@@ -10,8 +10,7 @@ import type { RiskAlert } from "@/lib/alert";
 
 export function HomePreviewTemplate({ news, about, projects, alert }: { news: Summary[]; about?: Summary; projects: Project[]; alert?: RiskAlert | null }) {
   const photo = about?.image ?? news.find(item => item.image)?.image;
-  const lead = news[0] ?? previewNews[0];
-  const project = projects[0];
+  const latest = [news[0] ?? previewNews[0], news[1] ?? previewNews[1]];
   return <>
     {alert && <RiskAlertBanner alert={alert} />}
     <section className="relative isolate overflow-hidden bg-brand-deep text-white">
@@ -31,21 +30,36 @@ export function HomePreviewTemplate({ news, about, projects, alert }: { news: Su
         <QuickAccess icon="calendar" label="Ver agenda y eventos" text="Actividades, reuniones y convocatorias." href="#agenda" />
         <QuickAccess icon="users" label="Participar en la comunidad" text="Comités, voluntariado y más." href="/comites/" />
       </div>
-      <div className="grid gap-8 py-8 lg:grid-cols-[1.23fr_1fr_1fr] lg:gap-5">
-        <section id="agenda" className="flex min-w-0 flex-col"><h2 className="mb-5 font-display text-2xl">Actualidad</h2>
-          <div className="grid flex-1 gap-3 sm:grid-cols-2"><PreviewCard title="Noticias comunitarias" text={lead.title} href={lead.href} image={lead.image ?? photo} /><PreviewCard title="Próximos eventos" text={previewEvents[0].title + " · " + previewEvents[0].day + " NOV · Contenido de ejemplo"} href="#eventos" image={news[1]?.image ?? photo} /></div>
-          {!news.length && <p className="mt-2 text-xs text-muted">Contenido de ejemplo</p>}
-          <Link href="/noticias/" className="mt-3 inline-block text-sm font-semibold text-leaf-deep">Ver todas las noticias →</Link>
+      <div className="grid gap-6 py-8 lg:grid-cols-4 lg:gap-4">
+        <section id="agenda" className="grid min-w-0 grid-rows-[auto_1fr] gap-5 lg:col-span-3">
+          <div className="flex min-h-16 flex-wrap items-center justify-between gap-2">
+            <h2 className="font-display text-2xl">Actualidad</h2>
+            <Link href="/noticias/" className="text-sm font-semibold text-leaf-deep">Ver todas las noticias →</Link>
+          </div>
+          <div className="grid auto-rows-fr gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {latest.map((item, index) => <PreviewCard key={item.href} title={item.title} text={item.excerpt} href={item.href} image={item.image} example={!news[index]} />)}
+            <PreviewCard title="Próximos eventos" text={previewEvents[0].title + " · " + previewEvents[0].day + " NOV"} href="#eventos" image={news[2]?.image} example />
+          </div>
         </section>
-        <section id="territorio" className="flex min-w-0 flex-col lg:border-l lg:border-line lg:pl-5"><h2 className="mb-5 font-display text-2xl">El territorio y su gestión</h2>
-          <button type="button" popoverTarget="mapa" className="flex flex-1 flex-col w-full text-left overflow-hidden rounded-xl border border-line bg-leaf/20">
-            <div aria-label="Mapa ilustrativo del territorio" className="relative h-40 w-full shrink-0 overflow-hidden bg-[repeating-linear-gradient(35deg,transparent_0_35px,var(--color-paper)_35px_43px),repeating-linear-gradient(125deg,transparent_0_50px,var(--color-paper)_50px_58px)]">
-              {["Zona verde", "Encuentro", "Iniciativas"].map((label, index) => <span key={label} style={{ left: `${10 + index * 27}%`, top: `${20 + index * 20}%` }} className="absolute rounded-full border border-leaf bg-white px-2 py-1 text-xs font-semibold text-leaf-deep">{label}</span>)}
-            </div><div className="w-full flex-1 bg-white/90 p-4"><h3 className="font-display text-xl">Explora el mapa comunitario →</h3><p className="mt-1 text-sm text-muted">Proyectos, espacios de interés y temas territoriales.</p><p className="mt-2 text-xs text-muted">Contenido de ejemplo</p></div>
-          </button>
+        <section id="territorio" className="grid min-w-0 grid-rows-[auto_1fr] gap-5">
+          <div className="flex min-h-16 items-center"><h2 className="font-display text-2xl">El territorio y su gestión</h2></div>
+          <PreviewCard title="Explora el mapa comunitario" text="Proyectos, espacios de interés y temas territoriales." href="#mapa" example media={
+            <div aria-label="Mapa ilustrativo del territorio" className="relative h-full bg-[repeating-linear-gradient(35deg,transparent_0_35px,var(--color-paper)_35px_43px),repeating-linear-gradient(125deg,transparent_0_50px,var(--color-paper)_50px_58px)]">
+              {["Zona verde", "Encuentro", "Iniciativas"].map((label, index) => <span key={label} style={{ left: `${5 + index * 25}%`, top: `${15 + index * 25}%` }} className="absolute rounded-full border border-leaf bg-white px-2 py-1 text-xs font-semibold text-leaf-deep">{label}</span>)}
+            </div>
+          } />
         </section>
-        <section id="proyectos" className="flex min-w-0 flex-col lg:border-l lg:border-line lg:pl-5"><div className="mb-5 flex flex-wrap items-center justify-between gap-2"><h2 className="font-display text-2xl">Proyectos destacados</h2><Link href="/proyectos/" className="text-sm font-semibold text-leaf-deep">Ver proyectos →</Link></div><PreviewCard title="Iniciativas y resultados" text={project?.title ?? "Conoce qué se está proponiendo, gestionando y ejecutando."} href={project ? `/proyectos/${project.slug}/` : "/proyectos/"} image={project?.image ?? photo} /></section>
       </div>
+      <section id="proyectos" className="pb-8">
+        <div className="mb-5 flex min-h-16 flex-wrap items-center justify-between gap-2">
+          <h2 className="font-display text-2xl">Proyectos destacados</h2>
+          <Link href="/proyectos/" className="text-sm font-semibold text-leaf-deep">Ver proyectos →</Link>
+        </div>
+        <div className="grid auto-rows-fr gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {projects.slice(0, 4).map(project => <PreviewCard key={project.slug} title={project.title} text={project.summary} image={project.image} href={`/proyectos/${project.slug}/`} />)}
+          {!projects.length && <PreviewCard title="Iniciativas y resultados" text="Conoce qué se está proponiendo, gestionando y ejecutando." href="/proyectos/" example />}
+        </div>
+      </section>
       <section className="grid gap-6 border-t border-line py-6 md:grid-cols-2">
         <div className="flex flex-col"><h2 className="mb-4 font-display text-2xl">Transparencia y rendición de cuentas</h2><QuickAccess icon="chart" label="Gestión abierta y transparente" text="Informes, documentos y resultados de la gestión comunitaria." href="/rendicion-de-cuentas/" /></div>
         <div id="comercio" className="flex flex-col md:border-l md:border-line md:pl-6"><h2 className="mb-4 font-display text-2xl">Comercio Local</h2><QuickAccess icon="store" label="Comercios y servicios del territorio" text="Contenido de ejemplo · Descubre el directorio local." target="directorio" /></div>
