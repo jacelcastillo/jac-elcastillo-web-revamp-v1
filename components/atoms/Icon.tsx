@@ -10,9 +10,17 @@ type Name = "menu"
   | "pin"
   | "calendar"
   | "users"
-  | "coins";
+  | "coins"
+  | "search"
+  | "report"
+  | "store"
+  | "chart";
 
 const paths: Record<Name, string> = {
+  search: "M21 21l-5-5M10 3a7 7 0 1 0 0 14 7 7 0 0 0 0-14z",
+  report: "M14 2H4v20h12M14 2v6h6L14 2M8 12h5M8 16h3M19 14v8M15 18h8",
+  store: "M3 10V5h18v5M3 10a3 3 0 0 0 6 0 3 3 0 0 0 6 0 3 3 0 0 0 6 0M5 13v9h14v-9M9 22v-7h6v7",
+  chart: "M4 21V13h3v8M10 21V8h3v13M16 21V3h3v18",
   menu: "M4 6h16M4 12h16M4 18h16",
   close: "M6 6l12 12M18 6L6 18",
   chevron: "M6 9l6 6 6-6",

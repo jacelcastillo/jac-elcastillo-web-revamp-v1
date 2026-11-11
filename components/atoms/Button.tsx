@@ -3,7 +3,7 @@ import type { ComponentPropsWithoutRef } from "react";
 export type Variant = "primary" | "secondary";
 
 const variants: Record<Variant, string> = {
-  primary: "bg-brand text-white hover:bg-brand-deep",
+  primary: "bg-leaf-deep text-white hover:bg-[#354d07]",
   secondary: "border border-ink/15 bg-white text-ink hover:border-ink/40",
 };
 

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Atkinson_Hyperlegible_Next, Bricolage_Grotesque } from "next/font/google";
 import { SiteFooter } from "@/components/organisms/SiteFooter";
-import { SiteHeader } from "@/components/organisms/SiteHeader";
+import { HeaderSelector } from "@/components/organisms/HeaderSelector";
 import "./globals.css";
 
 const bricolage = Bricolage_Grotesque({
@@ -29,7 +29,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         >
           Saltar al contenido
         </a>
-        <SiteHeader />
+        <HeaderSelector />
         <main id="contenido" className="flex-1">
           {children}
         </main>
