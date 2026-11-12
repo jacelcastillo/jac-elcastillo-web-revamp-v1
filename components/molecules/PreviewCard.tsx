@@ -2,6 +2,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { Icon } from "@/components/atoms/Icon";
+import { Tiles } from "@/components/atoms/Tiles";
 import type { ComponentProps, ReactNode } from "react";
 import type { Img } from "@/lib/types";
 
@@ -16,8 +17,12 @@ export function PreviewCard({ title, text, href, image, media, example = false }
       panel.showPopover();
     }
   }} className="flex min-w-0 flex-col overflow-hidden rounded-xl border border-line bg-white shadow-sm transition hover:shadow-md">
-    <div className="relative h-40 shrink-0 overflow-hidden bg-leaf/10">
-      {media ?? (image && <Image src={image.src} alt={image.alt} fill sizes="(min-width: 1024px) 25vw, (min-width: 640px) 50vw, 100vw" className="object-cover" />)}
+    <div className="relative h-40 shrink-0 overflow-hidden bg-paper">
+      {media ?? (image ? (
+        <Image src={image.src} alt={image.alt} fill sizes="(min-width: 1024px) 25vw, (min-width: 640px) 50vw, 100vw" className="object-cover" />
+      ) : (
+        <Tiles size="sm" className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2" />
+      ))}
     </div>
     <div className="grid flex-1 grid-rows-[auto_auto_1fr] gap-2 p-4">
       <h3 className="line-clamp-2 min-h-14 font-display text-xl leading-7">{title}</h3>
