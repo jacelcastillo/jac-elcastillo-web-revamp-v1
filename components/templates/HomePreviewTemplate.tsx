@@ -1,5 +1,6 @@
 import Link from "next/link";
 import Image from "next/image";
+import { Icon } from "@/components/atoms/Icon";
 import { Container } from "@/components/atoms/Container";
 import { ButtonLink } from "@/components/atoms/ButtonLink";
 import { PreviewCard, QuickAccess } from "@/components/molecules/PreviewCard";
@@ -20,7 +21,7 @@ export function HomePreviewTemplate({ news, about, projects, alert }: { news: Su
         <p className="text-xs font-semibold uppercase tracking-widest">Portal comunitario · Imagen ilustrativa</p>
         <h1 className="mt-3 max-w-2xl font-display text-4xl leading-tight md:text-5xl">Un territorio. Una comunidad. Muchas posibilidades.</h1>
         <p className="mt-3 max-w-xl text-lg">Conoce lo que sucede en El Castillo, participa y encuentra soluciones para el bienestar de todos.</p>
-        <div className="mt-5 flex flex-wrap gap-3"><ButtonLink href="#territorio">Explorar el territorio</ButtonLink><ButtonLink href="#proyectos" variant="secondary">Conocer la gestión</ButtonLink></div>
+        <div className="mt-5 flex flex-wrap gap-3"><ButtonLink href="#territorio" style={{ backgroundColor: "#008e27" }}><Icon name="pin" className="size-5 shrink-0" />Explorar el territorio</ButtonLink><ButtonLink href="#proyectos" variant="secondary"><Icon name="chart" className="size-5 shrink-0 text-[#00552b]" />Conocer la gestión</ButtonLink></div>
       </Container>
     </section>
     <Container size="wide" className="pt-5 pb-12">

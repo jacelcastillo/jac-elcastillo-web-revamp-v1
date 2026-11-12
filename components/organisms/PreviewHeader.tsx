@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { Icon } from "@/components/atoms/Icon";
 import { Button } from "@/components/atoms/Button";
 import { Logo } from "@/components/atoms/Logo";
 import { Container } from "@/components/atoms/Container";
@@ -25,7 +26,7 @@ export function PreviewHeader() {
         <input id="preview-search" type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder="Buscar en el sitio…" className="w-full rounded-xl border border-line bg-white px-4 py-3" />
         {query.trim() && <div className="absolute inset-x-0 top-full z-50 rounded-xl border border-line bg-white p-2 shadow-lg" aria-live="polite">{results.length ? results.map(([label, href]) => <Link key={label} href={href} onClick={() => setQuery("")} className="block rounded-lg p-3 hover:bg-paper">{label}</Link>) : <p className="p-3">Sin resultados</p>}</div>}
       </div>
-      <Button popoverTarget="solicitud">Reportar una situación</Button>
+      <Button popoverTarget="solicitud" style={{ backgroundColor: "#00552b" }}><Icon name="alert" className="size-5 shrink-0" />Reportar una situación</Button>
     </Container>
     <div className="border-t border-line"><Container size="wide"><nav aria-label="Principal" className="flex flex-wrap justify-between gap-x-4 gap-y-1 py-2">{destinations.map(([label, href]) => <Link key={label} href={href} className="py-2 text-sm font-semibold hover:text-brand">{label}</Link>)}</nav></Container></div>
   </header>;

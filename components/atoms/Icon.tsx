@@ -14,9 +14,11 @@ type Name = "menu"
   | "search"
   | "report"
   | "store"
-  | "chart";
+  | "chart"
+  | "alert";
 
 const paths: Record<Name, string> = {
+  alert: "M10.3 3.9 2 18.3A2 2 0 0 0 3.7 21h16.6a2 2 0 0 0 1.7-2.7L13.7 3.9a2 2 0 0 0-3.4 0zM12 9v4M12 17h.01",
   search: "M21 21l-5-5M10 3a7 7 0 1 0 0 14 7 7 0 0 0 0-14z",
   report: "M14 2H4v20h12M14 2v6h6L14 2M8 12h5M8 16h3M19 14v8M15 18h8",
   store: "M3 10V5h18v5M3 10a3 3 0 0 0 6 0 3 3 0 0 0 6 0 3 3 0 0 0 6 0M5 13v9h14v-9M9 22v-7h6v7",
