@@ -236,7 +236,7 @@ Sin el plugin, la app no se rompe: la ruta da 404 y la página del período sale
 
 ### Cómo carga la Junta los dignatarios
 
-En Dignatarios → Añadir nuevo, una entrada por persona y período:
+En <nombre del sitio> → Dignatarios → Añadir nuevo, una entrada por persona y período:
 
 - **Título:** el nombre completo.
 - **Imagen destacada:** la foto. Súbela solo con autorización de la persona. Sin foto se muestra la marca 2x2.
@@ -253,7 +253,7 @@ Para que un período se vea en el sitio nuevo, debe existir su página como hija
 
 Regla editorial: un **proyecto** lleva ficha, un **avance** es una entrada en la categoría del proyecto y una **actividad suelta** es solo una entrada.
 
-En Proyectos → Añadir nuevo:
+En <nombre del sitio> → Proyectos → Añadir nuevo:
 
 - **Título y contenido:** el nombre y la ficha (Editor clásico). El **resumen** es el extracto y la **portada** es la imagen destacada.
 - **Categorías de proyecto:** casillas propias de los proyectos, que alimentan el filtro.
@@ -278,7 +278,7 @@ El tipo `project` de Divi queda oculto. Un borrador o un proyecto con contraseñ
 
 Una **comisión** es una comisión de trabajo, una comisión accidental, una nueva iniciativa o un órgano de la Junta. Todas comparten los mismos campos y se agrupan en secciones por su tipo.
 
-En Comisiones → Añadir nueva:
+En <nombre del sitio> → Comisiones → Añadir nueva:
 
 - **Título:** el nombre estatutario. El **contenido** son las funciones (Editor clásico) y el **resumen** es el extracto.
 - **Datos de la comisión:** nombre corto (hasta 40 caracteres, es el título de la tarjeta), sección, estado y fundamento (hasta 80 caracteres, por ejemplo "Estatutos, art. 58"; vacío, la ficha dice "Por verificar").
