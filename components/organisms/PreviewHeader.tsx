@@ -16,7 +16,7 @@ const destinations = [
 export function PreviewHeader() {
   const [query, setQuery] = useState("");
   const results = destinations.filter(([label]) => label.toLocaleLowerCase("es").includes(query.trim().toLocaleLowerCase("es")));
-  return <header className="border-b border-line bg-paper">
+  return <header className="sticky top-0 z-40 border-b border-line bg-paper/90 backdrop-blur">
     <div className="flag-rule" />
     <Container size="wide" className="flex flex-wrap items-center justify-between gap-4 py-3">
       <Link href="/preview/inicio/"><Logo /></Link>
