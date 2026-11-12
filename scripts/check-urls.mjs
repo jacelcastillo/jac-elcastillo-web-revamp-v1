@@ -1,3 +1,5 @@
+import { LEGACY_PATHS } from "../lib/redirects.ts";
+
 const base = (process.argv[2] ?? "http://localhost:3000").replace(/\/$/, "");
 const wp = (process.env.WP_URL ?? "https://jacelcastillo.com.co").replace(/\/$/, "");
 
@@ -22,11 +24,19 @@ async function projectPaths() {
   return (await res.json()).proyectos.map((p) => `/proyectos/${p.slug}/`);
 }
 
-const wpUrls = [...new Set([...(await wpPaths("posts")), ...(await wpPaths("pages"))])];
+async function commissionPaths() {
+  const res = await fetch(`${wp}/wp-json/jac-web/v1/comisiones`, { signal: AbortSignal.timeout(30000) });
+  if (res.status === 404) return [];
+  if (!res.ok) throw new Error(`WordPress comisiones: ${res.status}`);
+  return (await res.json()).comisiones.map((c) => `/comisiones/${c.slug}/`);
+}
+
+const wpUrls = [...new Set([...(await wpPaths("posts")), ...(await wpPaths("pages"))])].filter((p) => !(p in LEGACY_PATHS));
 
 const checks = [
-  ...["/", "/noticias/", "/comites/", "/proyectos/", "/contacto/", "/robots.txt", ...wpUrls, ...(await projectPaths())].map((p) => [[200], p]),
-  ...["/x%3F_fields%3Dauthor/", "/no-existe-este-slug/", "/noticias/?categoria=%3Cscript%3E", "/noticias/?page=-1", "/proyectos/no-existe/", "/proyectos/?estado=x"].map((p) => [[404], p]),
+  ...["/", "/noticias/", "/comisiones/", "/proyectos/", "/contacto/", "/robots.txt", ...wpUrls, ...(await projectPaths()), ...(await commissionPaths())].map((p) => [[200], p]),
+  ...["/x%3F_fields%3Dauthor/", "/no-existe-este-slug/", "/noticias/?categoria=%3Cscript%3E", "/noticias/?page=-1", "/proyectos/no-existe/", "/proyectos/?estado=x", "/comisiones/no-existe/"].map((p) => [[404], p]),
+  ...Object.keys(LEGACY_PATHS).map((p) => [[308], p]),
   [[400, 404], "/..%2Fusers/"],
   [[400], "/_next/image/?url=https%3A%2F%2Fevil.com%2Fx.png&w=640&q=75"],
 ];
@@ -45,8 +55,12 @@ await Promise.all(
   Array.from({ length: 4 }, async () => {
     while (next < checks.length) {
       const [expected, path] = checks[next++];
-      const { status } = await request(path);
+      const { status, headers } = await request(path);
       if (!expected.includes(status)) failures.push(`expected ${expected.join(" or ")} got ${status}  ${path}`);
+      else if (path in LEGACY_PATHS) {
+        const location = new URL(headers.get("location") ?? "", base).pathname;
+        if (location !== LEGACY_PATHS[path]) failures.push(`expected redirect to ${LEGACY_PATHS[path]} got ${location}  ${path}`);
+      }
     }
   }),
 );

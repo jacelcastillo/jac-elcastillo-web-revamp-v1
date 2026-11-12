@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { LEGACY_PATHS } from "./lib/redirects.ts";
 
 const csp = [
   "default-src 'self'",
@@ -27,6 +28,13 @@ const nextConfig: NextConfig = {
         pathname: "/wp-content/uploads/**",
       },
     ],
+  },
+  async redirects() {
+    return Object.entries(LEGACY_PATHS).map(([source, destination]) => ({
+      source,
+      destination,
+      permanent: true,
+    }));
   },
   async headers() {
     return [

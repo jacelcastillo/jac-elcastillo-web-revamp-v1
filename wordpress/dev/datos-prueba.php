@@ -122,6 +122,39 @@ function jw_prueba_proyecto(string $titulo, array $categorias, array $meta, arra
     return $id;
 }
 
+function jw_prueba_comision(string $titulo, string $corto, string $tipo, string $estado, string $fundamento, int $orden, array $extra = []): int {
+    $existe = get_posts([
+        'post_type' => 'jw_comision',
+        'post_status' => 'any',
+        'meta_key' => 'jw_prueba',
+        'meta_value' => $titulo,
+        'fields' => 'ids',
+        'posts_per_page' => 1,
+    ]);
+    if ($existe) {
+        return $existe[0];
+    }
+    $id = wp_insert_post($extra + [
+        'post_type' => 'jw_comision',
+        'post_status' => 'publish',
+        'post_title' => $titulo,
+        'post_excerpt' => 'Resumen de prueba de ' . $titulo . '.',
+        'post_content' => '<p>Funciones de prueba de ' . $titulo . '.</p>',
+        'menu_order' => $orden,
+        'meta_input' => [
+            'jw_prueba' => $titulo,
+            'jw_nombre_corto' => $corto,
+            'jw_tipo' => $tipo,
+            'jw_estado' => $estado,
+            'jw_fundamento' => $fundamento,
+        ],
+    ], true);
+    if (is_wp_error($id)) {
+        WP_CLI::error($id->get_error_message());
+    }
+    return $id;
+}
+
 $historia = jw_prueba_pagina(
     'historia',
     'Nuestra historia',
@@ -207,6 +240,28 @@ if (!get_page_by_path('avance-de-prueba-del-parque', OBJECT, 'post')) {
         WP_CLI::error($avance->get_error_message());
     }
     wp_set_post_categories($avance, [get_term_by('slug', 'proyecto-de-prueba-parque', 'category')->term_id]);
+}
+
+jw_prueba_termino('Comisiones', 'category');
+
+jw_prueba_comision('Comisión de prueba Ordinaria', 'Ordinaria de prueba', 'ordinaria', 'activa', 'Estatutos de prueba, art. 1', 0);
+jw_prueba_comision('Comisión de prueba Accidental', 'Accidental de prueba', 'accidental', 'sin-coordinacion', '', 0);
+jw_prueba_comision('Comisión de prueba Iniciativa', 'Iniciativa de prueba', 'iniciativa', 'conformacion', 'Propuesta de prueba', 0);
+jw_prueba_comision('Órgano de prueba', 'Órgano de prueba', 'organo', 'verificar', 'Estatutos de prueba, art. 2', 0);
+jw_prueba_comision('Comisión de prueba Borrador', 'Borrador de prueba', 'ordinaria', 'activa', '', 1, ['post_status' => 'draft']);
+
+if (!get_page_by_path('rendicion-de-prueba-de-la-comision', OBJECT, 'post')) {
+    $rendicion = wp_insert_post([
+        'post_type' => 'post',
+        'post_status' => 'publish',
+        'post_name' => 'rendicion-de-prueba-de-la-comision',
+        'post_title' => 'Rendición de prueba de la comisión',
+        'post_content' => '<p>Texto de prueba de una rendición de cuentas.</p>',
+    ], true);
+    if (is_wp_error($rendicion)) {
+        WP_CLI::error($rendicion->get_error_message());
+    }
+    wp_set_post_categories($rendicion, [get_term_by('slug', 'comision-de-prueba-ordinaria', 'category')->term_id]);
 }
 
 WP_CLI::success('Datos de prueba listos.');

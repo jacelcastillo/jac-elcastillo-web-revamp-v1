@@ -33,6 +33,17 @@ export type Project = {
   html: SafeHtml;
 };
 export type ProjectsPage = { statuses: Category[]; projects: Project[] };
+export type Commission = {
+  slug: string;
+  name: string;
+  shortName: string;
+  type: Category;
+  status: Category;
+  basis: string;
+  summary: string;
+  html: SafeHtml;
+};
+export type CommissionsPage = { types: Category[]; statuses: Category[]; commissions: Commission[] };
 export type NavItem = { label: string; href: string };
 export type NavGroup = { label: string; items: NavItem[] };
 export type NavEntry = NavItem | NavGroup;

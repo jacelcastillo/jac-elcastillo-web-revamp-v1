@@ -1,4 +1,4 @@
-import { isRecord, toPhoto } from "./board.ts";
+import { isRecord, str, toCategory, toPhoto } from "./board.ts";
 import { clean, isSlug } from "./html.ts";
 import { optimizeImages } from "./images.ts";
 import type { Category, Project, ProjectsPage } from "./types.ts";
@@ -12,19 +12,10 @@ export const STATUS_TONES: Record<string, "leaf" | "sun" | "blue" | "muted"> = {
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 
-const str = (value: unknown) => (typeof value === "string" ? value.trim() : "");
-
 const count = (value: unknown, max = Number.MAX_SAFE_INTEGER) =>
   typeof value === "number" && Number.isInteger(value) && value > 0 ? Math.min(value, max) : 0;
 
 const date = (value: unknown) => (DATE.test(str(value)) ? str(value) : "");
-
-function toCategory(raw: unknown, slugKey: string, nameKey: string): Category[] {
-  if (!isRecord(raw)) return [];
-  const slug = raw[slugKey];
-  const name = str(raw[nameKey]);
-  return typeof slug === "string" && isSlug(slug) && name ? [{ slug, name }] : [];
-}
 
 function toProject(raw: unknown, statuses: Category[]): Project[] {
   if (!isRecord(raw) || typeof raw.slug !== "string" || !isSlug(raw.slug)) return [];

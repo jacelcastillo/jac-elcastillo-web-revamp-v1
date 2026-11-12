@@ -40,18 +40,6 @@ export const CONTACT_LINKS: ContactLink[] = [
   { icon: "clock", label: "Horario", value: SITE.contact.hours },
 ];
 
-export const COMMITTEES = [
-  "servicios-publicos",
-  "seguridad-y-movilidad",
-  "salud-y-medio-ambiente",
-  "educacion-cultura-y-deporte",
-  "empresarial",
-  "tercera-edad",
-  "tic",
-  "comision-del-adulto-mayor",
-  "comision-de-cultura",
-];
-
 export const NAV: NavEntry[] = [
   { label: "Inicio", href: "/" },
   {
@@ -60,7 +48,7 @@ export const NAV: NavEntry[] = [
       { label: "Quiénes somos", href: "/nosotros/" },
       { label: "Dignatarios", href: "/historia/2026-2030/" },
       { label: "Nuestra historia", href: "/historia/" },
-      { label: "Comités", href: "/comites/" },
+      { label: "Comisiones de trabajo", href: "/comisiones/" },
     ],
   },
   { label: "Proyectos", href: "/proyectos/" },

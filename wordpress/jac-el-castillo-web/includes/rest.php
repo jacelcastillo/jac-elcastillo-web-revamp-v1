@@ -14,6 +14,11 @@ function jw_registrar_ruta(): void {
         'callback' => 'jw_proyectos',
         'permission_callback' => '__return_true',
     ]);
+    register_rest_route('jac-web/v1', '/comisiones', [
+        'methods' => 'GET',
+        'callback' => 'jw_comisiones',
+        'permission_callback' => '__return_true',
+    ]);
 }
 
 function jw_dignatarios(): WP_REST_Response {
@@ -22,12 +27,26 @@ function jw_dignatarios(): WP_REST_Response {
     return $respuesta;
 }
 
-function jw_proyectos(): WP_REST_Response {
-    $estados = [];
-    foreach (JW_ESTADOS as $valor => $nombre) {
-        $estados[] = ['valor' => $valor, 'nombre' => $nombre];
+function jw_opciones(array $opciones): array {
+    $filas = [];
+    foreach ($opciones as $valor => $nombre) {
+        $filas[] = ['valor' => $valor, 'nombre' => $nombre];
     }
-    $respuesta = new WP_REST_Response(['estados' => $estados, 'proyectos' => jw_proyectos_publicos()]);
+    return $filas;
+}
+
+function jw_proyectos(): WP_REST_Response {
+    $respuesta = new WP_REST_Response(['estados' => jw_opciones(JW_ESTADOS), 'proyectos' => jw_proyectos_publicos()]);
+    $respuesta->header('Cache-Control', 'public, max-age=300');
+    return $respuesta;
+}
+
+function jw_comisiones(): WP_REST_Response {
+    $respuesta = new WP_REST_Response([
+        'tipos' => jw_opciones(JW_TIPOS),
+        'estados' => jw_opciones(JW_ESTADOS_COMISION),
+        'comisiones' => jw_comisiones_publicas(),
+    ]);
     $respuesta->header('Cache-Control', 'public, max-age=300');
     return $respuesta;
 }
@@ -123,6 +142,31 @@ function jw_proyectos_publicos(): array {
                 $categorias
             ),
             'imagen' => jw_foto($post->ID),
+            'contenido' => apply_filters('the_content', $post->post_content),
+        ];
+    }, $posts);
+}
+
+function jw_comisiones_publicas(): array {
+    $posts = get_posts([
+        'post_type' => 'jw_comision',
+        'post_status' => 'publish',
+        'has_password' => false,
+        'posts_per_page' => -1,
+        'no_found_rows' => true,
+        'orderby' => ['menu_order' => 'ASC', 'title' => 'ASC'],
+    ]);
+
+    return array_map(static function (WP_Post $post): array {
+        $meta = static fn(string $clave): mixed => get_post_meta($post->ID, $clave, true);
+        return [
+            'slug' => $post->post_name,
+            'nombre' => jw_plano($post->post_title),
+            'nombre_corto' => jw_texto(jw_plano($meta('jw_nombre_corto')), 40),
+            'tipo' => jw_enum($meta('jw_tipo'), array_keys(JW_TIPOS), 'ordinaria'),
+            'estado' => jw_enum($meta('jw_estado'), array_keys(JW_ESTADOS_COMISION), 'verificar'),
+            'fundamento' => jw_texto(jw_plano($meta('jw_fundamento')), 80),
+            'resumen' => jw_plano($post->post_excerpt),
             'contenido' => apply_filters('the_content', $post->post_content),
         ];
     }, $posts);

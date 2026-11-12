@@ -13,7 +13,7 @@ const JW_PRESUPUESTO_MAX = 9999999999999;
 add_action('init', 'jw_registrar_proyectos');
 add_action('add_meta_boxes', 'jw_agregar_caja_proyecto');
 add_action('save_post_jw_proyecto', 'jw_guardar_proyecto');
-add_action('save_post_jw_proyecto', 'jw_crear_categoria_avances', 10, 2);
+add_action('save_post_jw_proyecto', static fn(int $id, WP_Post $post) => jw_crear_categoria($post, 'proyectos'), 10, 2);
 add_filter('manage_jw_proyecto_posts_columns', 'jw_columnas_proyecto');
 add_action('manage_jw_proyecto_posts_custom_column', 'jw_pintar_columna_proyecto', 10, 2);
 add_filter('register_post_type_args', 'jw_ocultar_project_divi', 10, 2);
@@ -186,14 +186,14 @@ function jw_guardar_proyecto(int $id): void {
     }
 }
 
-function jw_crear_categoria_avances(int $id, WP_Post $post): void {
+function jw_crear_categoria(WP_Post $post, string $padre): void {
     if ($post->post_status !== 'publish' || $post->post_name === '' || get_term_by('slug', $post->post_name, 'category')) {
         return;
     }
-    $padre = get_term_by('slug', 'proyectos', 'category');
+    $termino = get_term_by('slug', $padre, 'category');
     wp_insert_term(jw_plano($post->post_title), 'category', [
         'slug' => $post->post_name,
-        'parent' => $padre ? $padre->term_id : 0,
+        'parent' => $termino ? $termino->term_id : 0,
     ]);
 }
 

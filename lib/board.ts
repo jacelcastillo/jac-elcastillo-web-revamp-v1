@@ -1,5 +1,6 @@
+import { isSlug } from "./html.ts";
 import { UPLOADS } from "./images.ts";
-import type { BoardMember, BoardTerm, Img } from "./types.ts";
+import type { BoardMember, BoardTerm, Category, Img } from "./types.ts";
 
 const TERM = /^\d{4}-\d{4}$/;
 
@@ -7,6 +8,15 @@ export const isTerm = (slug: string) => TERM.test(slug);
 
 export const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
+
+export const str = (value: unknown) => (typeof value === "string" ? value.trim() : "");
+
+export function toCategory(raw: unknown, slugKey: string, nameKey: string): Category[] {
+  if (!isRecord(raw)) return [];
+  const slug = raw[slugKey];
+  const name = str(raw[nameKey]);
+  return typeof slug === "string" && isSlug(slug) && name ? [{ slug, name }] : [];
+}
 
 const isSize = (value: unknown): value is number =>
   typeof value === "number" && Number.isFinite(value) && value > 0;

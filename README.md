@@ -19,6 +19,7 @@ Nueva interfaz del sitio de la Junta de Acción Comunal Ciudad Campestre El Cast
     ├─ /wp-json/wp/v2/categories   categorías
     ├─ /wp-json/jac-web/v1/dignatarios   dignatarios de cada período (plugin propio)
     ├─ /wp-json/jac-web/v1/proyectos     proyectos con estado y categorías (plugin propio)
+    ├─ /wp-json/jac-web/v1/comisiones    comisiones y órganos de la Junta (plugin propio)
     └─ /wp-content/uploads/...     imágenes (pasan por /_next/image)
 ```
 
@@ -80,7 +81,7 @@ Los archivos `.env*` están en `.gitignore`. En Vercel la variable se define en 
 | `pnpm exec tsc --noEmit` | Chequeo de tipos |
 | `pnpm wp:up` | Levanta el WordPress local del plugin (http://localhost:8081) |
 | `pnpm wp:setup` | Instala WordPress local, activa el plugin y carga datos de prueba ficticios (se puede repetir) |
-| `pnpm wp:check` | Comprueba la ruta de dignatarios contra el WordPress local. Con `node scripts/check-wp.mjs <url> --prod` solo lee |
+| `pnpm wp:check` | Comprueba las rutas de dignatarios, proyectos y comisiones contra el WordPress local. Con `node scripts/check-wp.mjs <url> --prod` solo lee |
 | `pnpm wp:zip` | Genera `dist/jac-el-castillo-web.zip` |
 
 ## Estructura
@@ -90,7 +91,8 @@ app/                    rutas (App Router)
   layout.tsx            html, fuentes, header, footer, noindex
   page.tsx              inicio
   noticias/page.tsx     listado de entradas con filtro y paginación
-  comites/page.tsx      listado de comités
+  comisiones/page.tsx   comisiones y órganos de la Junta, en 4 secciones
+  comisiones/[slug]/    ficha de la comisión con su rendición de cuentas
   proyectos/page.tsx    proyectos con filtros por categoría y estado
   proyectos/[slug]/     ficha del proyecto con sus avances
   contacto/page.tsx     contacto (estática)
@@ -113,13 +115,16 @@ lib/
   listing.ts            validación de ?categoria, ?estado y ?page
   projects.ts           toProjectsPage(), filterProjects(), categoriesOf(), periodText(), participantsText(), formatCOP()
   cms/projects.ts       getProjectsPage(): proyectos y estados
+  commissions.ts        toCommissionsPage(), commissionSections(), COMMISSION_TONES
+  cms/commissions.ts    getCommissionsPage(): comisiones, tipos y estados
+  redirects.ts          LEGACY_PATHS: rutas viejas de WordPress y su destino (next.config.ts y check-urls)
   paths.ts              pathOf(), pickByPath() y sortChildren(): rutas anidadas de páginas hijas
-  site.ts               datos fijos: nombre, contacto, menú, comités
+  site.ts               datos fijos: nombre, contacto, menú
   types.ts              tipos de dominio (Summary, Entry, SafeHtml...)
   *.test.ts             tests de lib/
 public/brand/           copia local de la marca 2x2 (cropped-favicon.webp)
 scripts/check-urls.mjs  verificación de URLs de punta a punta
-scripts/check-wp.mjs    verificación de la ruta de dignatarios (local y --prod)
+scripts/check-wp.mjs    verificación de las rutas de dignatarios, proyectos y comisiones (local y --prod)
 scripts/zip-plugin.sh   empaqueta el plugin en dist/
 wordpress/              plugin jac-el-castillo-web, WordPress local y datos de prueba
 ```
@@ -130,7 +135,8 @@ wordpress/              plugin jac-el-castillo-web, WordPress local y datos de p
 |---|---|---|
 | `/` | Hero con accesos a noticias y contacto, últimas 3 noticias, "Quiénes somos" (página `nosotros`) y "Rendición de cuentas" | En cada visita (`force-dynamic`), con los datos de WordPress en caché |
 | `/noticias/` | Entradas, 9 por página. `?categoria=<slug>` filtra y `?page=<n>` pagina | En cada visita (lee `searchParams`), con datos en caché |
-| `/comites/` | Las páginas listadas en `COMMITTEES` de `lib/site.ts` | En cada visita (`force-dynamic`), con datos en caché |
+| `/comisiones/` | Comisiones y órganos de la Junta en 4 secciones, en el orden de `tipos`. Sin comisiones dice "No hay comisiones publicadas." | En cada visita (`force-dynamic`), con datos en caché |
+| `/comisiones/<slug>/` | Ficha de la comisión: estado, fundamento, funciones y rendición de cuentas (hasta 6 entradas de la categoría con el mismo slug) | ISR |
 | `/proyectos/` | Proyectos con filtros `?categoria=<slug>` y `?estado=<valor>`. Un valor que no existe da 404 | En cada visita (`force-dynamic`), con datos en caché |
 | `/proyectos/<slug>/` | Ficha del proyecto, con sus avances (hasta 6 entradas de la categoría con el mismo slug) | ISR |
 | `/contacto/` | Datos de contacto de `lib/site.ts` | Estática, en el build |
@@ -148,7 +154,7 @@ Si una entrada y una página tienen la misma ruta, `getEntryByPath` muestra la e
 | Endpoint | Parámetros que usa la app | Para qué |
 |---|---|---|
 | `/wp-json/wp/v2/posts` | `slug`, `page`, `per_page`, `categories`, `_fields`, `_embed=wp:featuredmedia,wp:term` | Noticias y entradas sueltas |
-| `/wp-json/wp/v2/pages` | `slug` (uno o varios separados por coma), `per_page`, `_fields`, `_embed` | Páginas, comités, "Quiénes somos" |
+| `/wp-json/wp/v2/pages` | `slug` (uno o varios separados por coma), `per_page`, `_fields`, `_embed` | Páginas y "Quiénes somos" |
 | `/wp-json/wp/v2/categories` | `per_page=100`, `_fields=id,slug,name,count` | Filtro de noticias |
 
 La app pide siempre `_fields` explícitos y nunca pide el autor, así no expone usuarios de WordPress.
@@ -212,13 +218,13 @@ Después, `optimizeImages()` en `lib/images.ts` reescribe las `<img>` que vienen
 - **Páginas** se ven en la ruta de su enlace de WordPress (`/<slug>/`, o `/<padre>/<slug>/` si tienen página superior). "Quiénes somos" en el inicio lee la página con slug `nosotros`.
 - **Páginas hijas:** se crean eligiendo la página superior en Atributos de página → Superior. La página superior las muestra como tarjetas bajo su contenido, ordenadas por el campo "Orden" (menor primero). Con el mismo orden, gana el slug mayor.
 - **Nuestra historia** es la página `historia`. Cada período de la Junta es una página hija con slug `AAAA-AAAA` (por ejemplo `2026-2030`). La página lleva solo el texto de agradecimiento y su imagen destacada, que es la de la tarjeta. Las personas no van en el contenido de la página: se cargan en Dignatarios (ver [El plugin de WordPress](#el-plugin-de-wordpress)). El ítem "Dignatarios" del menú de la app apunta al período vigente y se cambia en `NAV` de `lib/site.ts` en cada período.
-- **Comités:** la lista de páginas está en `COMMITTEES` de `lib/site.ts`. Un comité nuevo necesita su página en WordPress y su slug en esa lista.
+- **Comisiones:** son registros del plugin, no páginas (ver [Comisiones](#comisiones)). Las 9 páginas viejas de comités siguen en WordPress, pero la app las redirige (308) a su comisión según `LEGACY_PATHS` de `lib/redirects.ts`.
 - **Menú:** el menú de WordPress no se lee, porque su endpoint REST exige iniciar sesión. El menú de la app vive en `NAV` de `lib/site.ts`.
 - **Constructores visuales:** el texto y las imágenes de Divi y Elementor se ven bien. Los widgets interactivos (formularios, carruseles, botones del tema) no pasan la limpieza. Para contenido nuevo conviene el editor de bloques de WordPress.
 
 ## El plugin de WordPress
 
-`wordpress/jac-el-castillo-web/` (en wp-admin: "JAC El Castillo · Sitio web") guarda el contenido del sitio que necesita campos propios, hoy los dignatarios de cada período, y lo publica por una ruta REST de solo lectura. Es un plugin aparte del de gestión del riesgo porque ese es del micrositio de emergencias y tiene datos vivos.
+`wordpress/jac-el-castillo-web/` (en wp-admin: "JAC El Castillo · Sitio web") guarda el contenido del sitio que necesita campos propios, hoy los dignatarios de cada período, los proyectos y las comisiones, y lo publica por rutas REST de solo lectura. Es un plugin aparte del de gestión del riesgo porque ese es del micrositio de emergencias y tiene datos vivos.
 
 ### Instalarlo
 
@@ -267,6 +273,45 @@ El tipo `project` de Divi queda oculto. Un borrador o un proyecto con contraseñ
     "categorias": [ { "slug": "obras", "nombre": "Obras" } ],
     "imagen": { "url": "...", "ancho": 800, "alto": 500 }, "contenido": "<p>...</p>" } ] }
 ```
+
+### Comisiones
+
+Una **comisión** es una comisión de trabajo, una comisión accidental, una nueva iniciativa o un órgano de la Junta. Todas comparten los mismos campos y se agrupan en secciones por su tipo.
+
+En Comisiones → Añadir nueva:
+
+- **Título:** el nombre estatutario. El **contenido** son las funciones (Editor clásico) y el **resumen** es el extracto.
+- **Datos de la comisión:** nombre corto (hasta 40 caracteres, es el título de la tarjeta), sección, estado y fundamento (hasta 80 caracteres, por ejemplo "Estatutos, art. 58"; vacío, la ficha dice "Por verificar").
+- **Secciones (tipos), en este orden:** Comisiones de trabajo, Comisiones accidentales, Nuevas iniciativas y Órganos de la Junta. Una sección sin comisiones no se muestra.
+- **Estados:** Activa, Sin coordinación, En conformación y Pendiente de verificar. Se elige a mano: no se calcula, porque sin personas cargadas todas saldrían sin coordinación. Un valor inválido se guarda como `ordinaria` y `verificar`.
+- **Orden** (caja Atributos): la posición dentro de su sección, menor primero y luego por título.
+- **Rendición de cuentas:** al publicar una comisión se crea la categoría de entradas con su mismo slug, hija de la categoría `comisiones` si existe (si la categoría ya existe, se reutiliza). Las entradas publicadas en ella salen como "Rendición de cuentas" en la ficha, con el enlace "Ver todos" a Noticias.
+
+Un borrador o una comisión con contraseña no se publica. El tipo no tiene URL propia en WordPress.
+
+`GET /wp-json/jac-web/v1/comisiones`: pública, de solo lectura y con `Cache-Control: public, max-age=300`.
+
+```json
+{ "tipos": [ { "valor": "ordinaria", "nombre": "Comisiones de trabajo" } ],
+  "estados": [ { "valor": "activa", "nombre": "Activa" } ],
+  "comisiones": [ { "slug": "...", "nombre": "...", "nombre_corto": "...", "tipo": "ordinaria", "estado": "verificar",
+    "fundamento": "Estatutos, art. 58", "resumen": "...", "contenido": "<p>...</p>" } ] }
+```
+
+#### Carga por script
+
+Las 21 comisiones y órganos de los estatutos (junio de 2024) se cargan con `cargas/cargar-comisiones.js`. Esa carpeta no está en git, porque el script trae datos reales (candidatos a coordinación del slice 2). Flujo:
+
+1. Subir el zip del plugin 0.5.0 (Reemplazar el actual) y purgar LiteSpeed.
+2. En una página de wp-admin con la sesión iniciada, pegar el script en la consola del navegador. Con `APLICAR = false` solo lee y muestra una tabla con lo que haría.
+3. Revisar la tabla y los estados de la lista `COMISIONES` del script. Con `APLICAR = true` crea la categoría Comisiones y las comisiones que falten. Es idempotente por slug: lo que ya existe se reutiliza.
+4. Con `ACTUALIZAR = true` y `APLICAR = true`, las comisiones que ya existen reciben los campos que difieran (título, resumen, funciones, orden, nombre corto, sección, estado y fundamento). En simulación lista qué campos cambiarían en cada una.
+
+#### Qué dicen los estatutos
+
+- El artículo 53 lista las funciones generales de los coordinadores de todas las comisiones de trabajo (convocar y presidir las reuniones, nombrar al secretario de la comisión, rendir informes a la Directiva y a la Asamblea, presentar el reglamento interno, hacer el empalme, entre otras). Valen para todas, así que no se repiten en cada ficha.
+- El artículo 52 lista la Comisión de Derechos Humanos entre las comisiones posibles, pero ningún artículo define sus funciones. Por eso su ficha lo dice y queda como "Pendiente de verificar".
+- El mismo artículo dice que el número, nombre y funciones de las comisiones los determina la asamblea general. Las comisiones que no están en los estatutos van en "Nuevas iniciativas", como Gestión del Riesgo.
 
 ### Probarlo en local
 
@@ -343,7 +388,7 @@ pnpm start                              # en otra terminal
 pnpm check-urls http://localhost:3000
 ```
 
-`check-urls` pide a WordPress la lista de todas las entradas y páginas, y comprueba que cada una responda 200 en la app. También comprueba que las rutas inválidas respondan 404 y que el optimizador rechace imágenes de otros dominios.
+`check-urls` pide a WordPress la lista de todas las entradas, páginas, proyectos y comisiones, y comprueba que cada una responda 200 en la app, salvo las rutas de `LEGACY_PATHS`, que deben responder 308 hacia su destino. También comprueba que las rutas inválidas respondan 404 y que el optimizador rechace imágenes de otros dominios.
 
 ## Despliegue
 

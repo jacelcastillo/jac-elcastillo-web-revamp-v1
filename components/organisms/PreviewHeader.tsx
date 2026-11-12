@@ -8,7 +8,7 @@ import { Logo } from "@/components/atoms/Logo";
 import { Container } from "@/components/atoms/Container";
 
 const destinations = [
-  ["Inicio", "/preview/inicio/"], ["Comunidad", "/comites/"], ["Servicios", "#solicitud"],
+  ["Inicio", "/preview/inicio/"], ["Comunidad", "/comisiones/"], ["Servicios", "#solicitud"],
   ["Territorio", "#territorio"], ["Proyectos", "/proyectos/"], ["Actualidad", "/noticias/"],
   ["Transparencia", "/rendicion-de-cuentas/"], ["Comercio Local", "#comercio"], ["La JAC", "/nosotros/"],
 ];

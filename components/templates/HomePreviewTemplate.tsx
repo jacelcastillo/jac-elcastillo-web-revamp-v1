@@ -29,7 +29,7 @@ export function HomePreviewTemplate({ news, about, projects, alert }: { news: Su
         <QuickAccess icon="report" label="Reportar una situación" text="Informa y ayuda a mejorar el territorio." target="solicitud" />
         <QuickAccess icon="search" label="Consultar una gestión" text="Revisa el estado de tu solicitud." target="seguimiento" />
         <QuickAccess icon="calendar" label="Ver agenda y eventos" text="Actividades, reuniones y convocatorias." href="#agenda" />
-        <QuickAccess icon="users" label="Participar en la comunidad" text="Comités, voluntariado y más." href="/comites/" />
+        <QuickAccess icon="users" label="Participar en la comunidad" text="Comités, voluntariado y más." href="/comisiones/" />
       </div>
       <div className="grid gap-6 py-8 lg:grid-cols-4 lg:gap-4">
         <section id="agenda" className="grid min-w-0 grid-rows-[auto_1fr] gap-5 lg:col-span-3">

@@ -17,6 +17,18 @@ const ESTADOS = [
   { valor: 'completado', nombre: 'Completado' },
   { valor: 'suspendido', nombre: 'Suspendido' },
 ]
+const TIPOS = [
+  { valor: 'ordinaria', nombre: 'Comisiones de trabajo' },
+  { valor: 'accidental', nombre: 'Comisiones accidentales' },
+  { valor: 'iniciativa', nombre: 'Nuevas iniciativas' },
+  { valor: 'organo', nombre: 'Órganos de la Junta' },
+]
+const ESTADOS_COMISION = [
+  { valor: 'activa', nombre: 'Activa' },
+  { valor: 'sin-coordinacion', nombre: 'Sin coordinación' },
+  { valor: 'conformacion', nombre: 'En conformación' },
+  { valor: 'verificar', nombre: 'Pendiente de verificar' },
+]
 const raiz = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 let fallos = 0
 
@@ -168,6 +180,35 @@ const { res: crearProyectoAnonimo } = await pedir('/wp-json/wp/v2/jw_proyecto', 
 })
 check('/wp-json/wp/v2/jw_proyecto anónimo: POST da 401', crearProyectoAnonimo.status === 401, String(crearProyectoAnonimo.status))
 
+const { res: resComisiones, texto: cuerpoComisiones } = await pedir('/wp-json/jac-web/v1/comisiones')
+check('comisiones: status 200', resComisiones.status === 200, String(resComisiones.status))
+let datosComisiones = {}
+try {
+  datosComisiones = JSON.parse(cuerpoComisiones)
+} catch {}
+check('comisiones: llaves de primer nivel tipos, estados y comisiones', mismasLlaves(datosComisiones, ['tipos', 'estados', 'comisiones']), Object.keys(datosComisiones).join(','))
+check('comisiones: lista de tipos exacta', JSON.stringify(datosComisiones.tipos) === JSON.stringify(TIPOS), JSON.stringify(datosComisiones.tipos))
+check('comisiones: lista de estados exacta', JSON.stringify(datosComisiones.estados) === JSON.stringify(ESTADOS_COMISION), JSON.stringify(datosComisiones.estados))
+const comisiones = Array.isArray(datosComisiones.comisiones) ? datosComisiones.comisiones : []
+const prohibidasComisiones = llavesProhibidas(datosComisiones)
+check('comisiones: ninguna llave de autor, correo, usuario o teléfono', prohibidasComisiones.length === 0, prohibidasComisiones.join(','))
+check(
+  'comisiones: cada comisión tiene exactamente las llaves del contrato, con tipo y estado válidos',
+  comisiones.every(
+    (c) =>
+      mismasLlaves(c, ['slug', 'nombre', 'nombre_corto', 'tipo', 'estado', 'fundamento', 'resumen', 'contenido']) &&
+      TIPOS.some((t) => t.valor === c.tipo) &&
+      ESTADOS_COMISION.some((e) => e.valor === c.estado),
+  ),
+)
+
+const { res: crearComisionAnonimo } = await pedir('/wp-json/wp/v2/jw_comision', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ title: 'Anónimo', status: 'publish' }),
+})
+check('/wp-json/wp/v2/jw_comision anónimo: POST da 401', crearComisionAnonimo.status === 401, String(crearComisionAnonimo.status))
+
 if (prod) {
   console.log(`${fallos ? 'FAIL' : 'OK'} producción: ${fallos} fallos`)
   process.exit(fallos ? 1 : 0)
@@ -204,6 +245,33 @@ check('proyectos: la huerta no tiene fin ni presupuesto', sinDatos?.fin === '' &
 const cancha = proyectos.find((p) => p.slug === 'proyecto-de-prueba-cancha')
 check('proyectos: la cancha no tiene ubicación ni participantes', cancha?.ubicacion === '' && cancha.participantes === 0, JSON.stringify(cancha))
 check('proyectos: tres proyectos en tres estados', proyectos.length === 3 && new Set(proyectos.map((p) => p.estado)).size === 3, String(proyectos.length))
+
+check('comisiones: Cache-Control con max-age=300', /max-age=300/.test(resComisiones.headers.get('cache-control') ?? ''), resComisiones.headers.get('cache-control') ?? '')
+check('comisiones: no aparece el borrador', !comisiones.some((c) => c.nombre === 'Comisión de prueba Borrador'))
+check(
+  'comisiones: orden por Orden y título',
+  comisiones.map((c) => c.slug).join(',') === 'comision-de-prueba-accidental,comision-de-prueba-iniciativa,comision-de-prueba-ordinaria,organo-de-prueba',
+  comisiones.map((c) => c.slug).join(','),
+)
+check(
+  'comisiones: cuatro comisiones, cada una de un tipo y un estado distinto',
+  comisiones.length === 4 && new Set(comisiones.map((c) => c.tipo)).size === 4 && new Set(comisiones.map((c) => c.estado)).size === 4,
+  String(comisiones.length),
+)
+const ordinaria = comisiones.find((c) => c.slug === 'comision-de-prueba-ordinaria')
+check(
+  'comisiones: la ordinaria trae sus campos y contenido',
+  ordinaria?.nombre === 'Comisión de prueba Ordinaria' &&
+    ordinaria.nombre_corto === 'Ordinaria de prueba' &&
+    ordinaria.tipo === 'ordinaria' &&
+    ordinaria.estado === 'activa' &&
+    ordinaria.fundamento === 'Estatutos de prueba, art. 1' &&
+    ordinaria.resumen === 'Resumen de prueba de Comisión de prueba Ordinaria.' &&
+    ordinaria.contenido.includes('<p>'),
+  JSON.stringify(ordinaria),
+)
+const sinFundamento = comisiones.find((c) => c.slug === 'comision-de-prueba-accidental')
+check('comisiones: la accidental no tiene fundamento', sinFundamento?.fundamento === '', JSON.stringify(sinFundamento))
 
 const nombres = todos.map((d) => d.nombre)
 for (const excluido of ['Borrador', 'Sin período', 'Protegida']) {
@@ -256,20 +324,23 @@ check(
   divi.stdout ?? '',
 )
 
-const categoriaAvances = (slug) => {
+const categoriaAvances = (slug, raizSlug = 'proyectos') => {
   const salida = wp(
     'eval',
-    `$t = get_terms(['taxonomy' => 'category', 'slug' => '${slug}', 'hide_empty' => false]); $p = get_term_by('slug', 'proyectos', 'category'); echo wp_json_encode(['n' => count($t), 'padre' => $t ? $t[0]->parent : -1, 'proyectos' => $p ? $p->term_id : -2]);`,
+    `$t = get_terms(['taxonomy' => 'category', 'slug' => '${slug}', 'hide_empty' => false]); $p = get_term_by('slug', '${raizSlug}', 'category'); echo wp_json_encode(['n' => count($t), 'padre' => $t ? $t[0]->parent : -1, 'raiz' => $p ? $p->term_id : -2]);`,
   )
   try {
     return JSON.parse(salida.stdout)
   } catch {
-    return { n: -1, padre: -1, proyectos: -2 }
+    return { n: -1, padre: -1, raiz: -2 }
   }
 }
 const avancesParque = categoriaAvances('proyecto-de-prueba-parque')
-check('categoría de avances del parque: una sola, hija de proyectos', avancesParque.n === 1 && avancesParque.padre === avancesParque.proyectos, JSON.stringify(avancesParque))
+check('categoría de avances del parque: una sola, hija de proyectos', avancesParque.n === 1 && avancesParque.padre === avancesParque.raiz, JSON.stringify(avancesParque))
 check('el borrador no crea categoría de avances', categoriaAvances('proyecto-de-prueba-borrador').n === 0)
+const categoriaComision = categoriaAvances('comision-de-prueba-ordinaria', 'comisiones')
+check('categoría de la comisión ordinaria: una sola, hija de comisiones', categoriaComision.n === 1 && categoriaComision.padre === categoriaComision.raiz, JSON.stringify(categoriaComision))
+check('el borrador de comisión no crea categoría', categoriaAvances('comision-de-prueba-borrador', 'comisiones').n === 0)
 
 const fotoPrueba = wp('post', 'list', '--post_type=attachment', '--meta_key=jw_prueba', '--meta_value=foto', '--field=ID')
 const fotoId = Number(fotoPrueba.stdout?.trim().split('\n')[0])
@@ -280,6 +351,7 @@ check('existe la foto de prueba', Number.isInteger(fotoId) && fotoId > 0, fotoPr
 
 let creadoId = 0
 let proyectoId = 0
+let comisionId = 0
 try {
   const auth = { Authorization: `Basic ${Buffer.from(`admin:${contrasena}`).toString('base64')}`, 'Content-Type': 'application/json' }
   const { res: creado, texto: cuerpoCreado } = await pedir('/wp-json/wp/v2/jw_dignatario', {
@@ -364,8 +436,49 @@ try {
     check(`participantes ${JSON.stringify(invalido)} por REST: ${estadoEsperado} y queda en ${guardado}`, escrito.status === estadoEsperado && leido?.participantes === guardado, `${escrito.status} ${cuerpoEscrito.slice(0, 200)}`)
   }
   const avancesRest = categoriaAvances('proyecto-de-prueba-rest')
-  check('publicar por REST crea la categoría de avances, hija de proyectos', avancesRest.n === 1 && avancesRest.padre === avancesRest.proyectos, JSON.stringify(avancesRest))
+  check('publicar por REST crea la categoría de avances, hija de proyectos', avancesRest.n === 1 && avancesRest.padre === avancesRest.raiz, JSON.stringify(avancesRest))
+
+  const { res: comisionCreada, texto: cuerpoComision } = await pedir('/wp-json/wp/v2/jw_comision', {
+    method: 'POST',
+    headers: auth,
+    body: JSON.stringify({
+      title: 'Comisión de prueba REST',
+      status: 'publish',
+      excerpt: 'Resumen REST',
+      content: '<p>Funciones REST</p>',
+      meta: { jw_tipo: 'inventado', jw_estado: 'inventado', jw_nombre_corto: 'x'.repeat(60), jw_fundamento: 'y'.repeat(100) },
+    }),
+  })
+  check('autenticado: POST crea la comisión (201)', comisionCreada.status === 201, `${comisionCreada.status} ${cuerpoComision.slice(0, 200)}`)
+  try {
+    comisionId = JSON.parse(cuerpoComision).id ?? 0
+  } catch {}
+  const { texto: cuerpoComisionesNuevo } = await pedir('/wp-json/jac-web/v1/comisiones')
+  let comisionesNuevas = []
+  try {
+    comisionesNuevas = JSON.parse(cuerpoComisionesNuevo).comisiones
+  } catch {}
+  const comisionPublica = comisionesNuevas.find((c) => c.slug === 'comision-de-prueba-rest')
+  check(
+    'la comisión creada por REST guarda tipo y estado por defecto y acota los textos',
+    comisionPublica?.tipo === 'ordinaria' &&
+      comisionPublica.estado === 'verificar' &&
+      comisionPublica.nombre_corto.length === 40 &&
+      comisionPublica.fundamento.length === 80 &&
+      comisionPublica.resumen === 'Resumen REST',
+    JSON.stringify(comisionPublica),
+  )
+  const categoriaRest = categoriaAvances('comision-de-prueba-rest', 'comisiones')
+  check('publicar por REST crea la categoría de la comisión, hija de comisiones', categoriaRest.n === 1 && categoriaRest.padre === categoriaRest.raiz, JSON.stringify(categoriaRest))
 } finally {
+  if (comisionId) {
+    const { res: borradaComision } = await pedir(`/wp-json/wp/v2/jw_comision/${comisionId}?force=true`, {
+      method: 'DELETE',
+      headers: { Authorization: `Basic ${Buffer.from(`admin:${contrasena}`).toString('base64')}` },
+    })
+    check('autenticado: DELETE ?force=true borra la comisión', borradaComision.status === 200, String(borradaComision.status))
+  }
+  wp('eval', "$t = get_term_by('slug', 'comision-de-prueba-rest', 'category'); if ($t) { wp_delete_term($t->term_id, 'category'); }")
   if (proyectoId) {
     const { res: borradoProyecto } = await pedir(`/wp-json/wp/v2/jw_proyecto/${proyectoId}?force=true`, {
       method: 'DELETE',
