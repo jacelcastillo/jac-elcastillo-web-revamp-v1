@@ -10,7 +10,20 @@ if (!base) {
   process.exit(2)
 }
 
-const CARGOS = ['presidencia', 'vicepresidencia', 'tesoreria', 'secretaria', 'fiscalia', 'conciliacion', 'delegacion', 'coordinacion', 'otro']
+const CARGOS = ['presidencia', 'vicepresidencia', 'tesoreria', 'secretaria', 'fiscalia', 'conciliacion', 'delegacion', 'coordinacion', 'integrante', 'otro']
+const GRUPOS = {
+  presidencia: 'Junta directiva',
+  vicepresidencia: 'Junta directiva',
+  tesoreria: 'Junta directiva',
+  secretaria: 'Junta directiva',
+  fiscalia: 'Órgano de control',
+  conciliacion: 'Convivencia y conciliación',
+  delegacion: 'Delegación ante Asocomunal',
+  coordinacion: 'Comisiones de trabajo',
+  integrante: 'Comisiones de trabajo',
+  otro: 'Otros cargos',
+}
+const SITUACIONES_PUBLICAS = { eleccion: '', 'ad-hoc': 'Ad hoc', asamblea: 'Elección en asamblea' }
 const ESTADOS = [
   { valor: 'planificacion', nombre: 'En planificación' },
   { valor: 'progreso', nombre: 'En progreso' },
@@ -100,7 +113,16 @@ check(
 const todos = periodos.flatMap((p) => (Array.isArray(p.dignatarios) ? p.dignatarios : []))
 check(
   'cada dignatario tiene exactamente las llaves del contrato',
-  todos.every((d) => mismasLlaves(d, ['id', 'nombre', 'cargo', 'cargo_nombre', 'detalle', 'foto']) && CARGOS.includes(d.cargo)),
+  todos.every(
+    (d) =>
+      mismasLlaves(d, ['id', 'nombre', 'cargo', 'cargo_nombre', 'detalle', 'grupo', 'comision', 'situacion', 'situacion_nombre', 'desde', 'foto']) &&
+      CARGOS.includes(d.cargo),
+  ),
+)
+check('grupo igual al de su cargo', todos.every((d) => d.grupo === GRUPOS[d.cargo]))
+check(
+  'situacion pública con su etiqueta, y desde vacío o AAAA-MM-DD',
+  todos.every((d) => d.situacion_nombre === SITUACIONES_PUBLICAS[d.situacion] && /^(\d{4}-\d{2}-\d{2})?$/.test(d.desde)),
 )
 check(
   'cargos en el orden de la lista dentro de cada período',
@@ -274,7 +296,7 @@ const sinFundamento = comisiones.find((c) => c.slug === 'comision-de-prueba-acci
 check('comisiones: la accidental no tiene fundamento', sinFundamento?.fundamento === '', JSON.stringify(sinFundamento))
 
 const nombres = todos.map((d) => d.nombre)
-for (const excluido of ['Borrador', 'Sin período', 'Protegida']) {
+for (const excluido of ['Borrador', 'Sin período', 'Protegida', 'Catorce']) {
   check(`no aparece "Persona de prueba ${excluido}"`, !nombres.includes(`Persona de prueba ${excluido}`))
 }
 check('2018-2022 no aparece en periodos', !periodos.some((p) => p.periodo === '2018-2022'))
@@ -283,13 +305,29 @@ check('2026-2030 va primero y 2022-2026 después', periodos.map((p) => p.periodo
 const vigente = periodos.find((p) => p.periodo === '2026-2030')?.dignatarios ?? []
 check(
   'orden de 2026-2030 por cargo, Orden y nombre',
-  vigente.map((d) => d.nombre.replace('Persona de prueba ', '')).join(',') === 'Uno,Dos,Siete,Tres,Ocho,Cinco,Cuatro,Seis',
+  vigente.map((d) => d.nombre.replace('Persona de prueba ', '')).join(',') === 'Uno,Dos,Siete,Tres,Ocho,Quince,Cinco,Cuatro,Doce,Dieciséis,Trece,Seis',
   vigente.map((d) => d.nombre).join(','),
 )
 const otro = vigente.find((d) => d.cargo === 'otro')
 check('otro: el detalle pasa a cargo_nombre y detalle queda vacío', otro?.cargo_nombre === 'Comisión de salud' && otro?.detalle === '', JSON.stringify(otro))
 const suplente = vigente.find((d) => d.nombre.endsWith('Dos'))
 check('detalle Suplente se conserva junto al cargo', suplente?.cargo_nombre === 'Vicepresidencia' && suplente?.detalle === 'Suplente', JSON.stringify(suplente))
+const coordinacion = vigente.find((d) => d.nombre.endsWith('Doce'))
+check(
+  'coordinación sin detalle toma el nombre corto de su comisión',
+  coordinacion?.detalle === 'Ordinaria de prueba' && coordinacion.comision === 'comision-de-prueba-ordinaria' && coordinacion.situacion === 'eleccion' && coordinacion.situacion_nombre === '',
+  JSON.stringify(coordinacion),
+)
+const adHoc = vigente.find((d) => d.nombre.endsWith('Trece'))
+check(
+  'integrante ad hoc trae situación, etiqueta y desde',
+  adHoc?.situacion === 'ad-hoc' && adHoc.situacion_nombre === 'Ad hoc' && adHoc.desde === '2027-03-01' && adHoc.cargo_nombre === 'Integrante de comisión de trabajo',
+  JSON.stringify(adHoc),
+)
+const fiscal = vigente.find((d) => d.nombre.endsWith('Quince'))
+check('fiscalía enlazada a un órgano no copia su nombre en el detalle', fiscal?.comision === 'organo-de-prueba' && fiscal.detalle === '', JSON.stringify(fiscal))
+const huerfana = vigente.find((d) => d.nombre.endsWith('Dieciséis'))
+check('comisión inexistente sale vacía y sin detalle', huerfana?.comision === '' && huerfana.detalle === '', JSON.stringify(huerfana))
 const conFoto = todos.filter((d) => d.foto !== null)
 check('exactamente una foto no nula', conFoto.length === 1, String(conFoto.length))
 
@@ -362,7 +400,7 @@ try {
       status: 'publish',
       menu_order: 5,
       featured_media: fotoId,
-      meta: { jw_periodo: '2026-2030', jw_cargo: 'tesoreria', jw_detalle: 'Prueba REST' },
+      meta: { jw_periodo: '2026-2030', jw_cargo: 'tesoreria', jw_detalle: 'Prueba REST', jw_situacion: 'inventado', jw_desde: '2025-02-30' },
     }),
   })
   check('autenticado: POST crea el dignatario (201)', creado.status === 201, `${creado.status} ${cuerpoCreado.slice(0, 200)}`)
@@ -377,10 +415,12 @@ try {
   } catch {}
   const creadoPublico = publico.flatMap((p) => p.dignatarios).find((d) => d.id === creadoId)
   check(
-    'el dignatario creado por REST sale en jac-web/v1/dignatarios con sus campos y foto',
+    'el dignatario creado por REST sale en jac-web/v1/dignatarios con sus campos y foto, con situación y fecha inválidas saneadas',
     creadoPublico?.nombre === 'Persona de prueba REST' &&
       creadoPublico.cargo === 'tesoreria' &&
       creadoPublico.detalle === 'Prueba REST' &&
+      creadoPublico.situacion === 'eleccion' &&
+      creadoPublico.desde === '' &&
       creadoPublico.foto !== null &&
       publico.find((p) => p.dignatarios.some((d) => d.id === creadoId))?.periodo === '2026-2030',
     JSON.stringify(creadoPublico),

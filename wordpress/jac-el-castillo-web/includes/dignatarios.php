@@ -10,8 +10,33 @@ const JW_CARGOS = [
     'conciliacion' => 'Comisión de convivencia y conciliación',
     'delegacion' => 'Delegación ante Asocomunal',
     'coordinacion' => 'Coordinación de comisión de trabajo',
+    'integrante' => 'Integrante de comisión de trabajo',
     'otro' => 'Otro cargo',
 ];
+
+const JW_GRUPOS = [
+    'presidencia' => 'Junta directiva',
+    'vicepresidencia' => 'Junta directiva',
+    'tesoreria' => 'Junta directiva',
+    'secretaria' => 'Junta directiva',
+    'fiscalia' => 'Órgano de control',
+    'conciliacion' => 'Convivencia y conciliación',
+    'delegacion' => 'Delegación ante Asocomunal',
+    'coordinacion' => 'Comisiones de trabajo',
+    'integrante' => 'Comisiones de trabajo',
+    'otro' => 'Otros cargos',
+];
+
+const JW_SITUACIONES = [
+    'eleccion' => 'Elección del período',
+    'ad-hoc' => 'Ad hoc',
+    'asamblea' => 'Elección en asamblea',
+    'no-acepto' => 'No aceptó el cargo',
+    'renuncia' => 'Renuncia',
+    'reemplazo' => 'Reemplazo en asamblea',
+];
+
+const JW_SITUACIONES_PUBLICAS = ['eleccion', 'ad-hoc', 'asamblea'];
 
 add_action('init', 'jw_registrar_dignatarios');
 add_action('add_meta_boxes', 'jw_agregar_caja_dignatario');
@@ -77,6 +102,14 @@ function jw_registrar_dignatarios(): void {
     register_post_meta('jw_dignatario', 'jw_detalle', $meta + [
         'sanitize_callback' => static fn($v): string => jw_texto($v, 80),
     ]);
+    register_post_meta('jw_dignatario', 'jw_comision', $meta + [
+        'sanitize_callback' => static fn($v): string => sanitize_title(is_string($v) ? $v : ''),
+    ]);
+    register_post_meta('jw_dignatario', 'jw_situacion', [
+        'default' => 'eleccion',
+        'sanitize_callback' => static fn($v): string => jw_enum($v, array_keys(JW_SITUACIONES), 'eleccion'),
+    ] + $meta);
+    register_post_meta('jw_dignatario', 'jw_desde', $meta + ['sanitize_callback' => 'jw_fecha']);
 }
 
 /** @return list<string> */
@@ -102,6 +135,9 @@ function jw_pintar_caja_dignatario(WP_Post $post): void {
     wp_nonce_field('jw_dignatario_guardar', 'jw_dignatario_nonce');
     $periodo = (string) get_post_meta($post->ID, 'jw_periodo', true);
     $cargo = (string) get_post_meta($post->ID, 'jw_cargo', true);
+    $comision = (string) get_post_meta($post->ID, 'jw_comision', true);
+    $situacion = jw_enum(get_post_meta($post->ID, 'jw_situacion', true), array_keys(JW_SITUACIONES), 'eleccion');
+    $mapa = jw_comisiones_mapa();
     ?>
     <p class="description">El título es el nombre completo. La foto es la imagen destacada: súbela solo con autorización de la persona; sin foto se muestra el logo de la Junta. Para que el período se vea en el sitio nuevo, debe existir una página hija de Nuestra historia con el período como slug. Orden solo desempata a personas con el mismo cargo.</p>
     <p>
@@ -125,8 +161,45 @@ function jw_pintar_caja_dignatario(WP_Post $post): void {
     <p>
         <label for="jw_detalle"><strong>Detalle</strong></label><br>
         <input type="text" id="jw_detalle" name="jw_detalle" class="regular-text" maxlength="80" value="<?php echo esc_attr((string) get_post_meta($post->ID, 'jw_detalle', true)); ?>">
-        <span class="description">Opcional, por ejemplo Suplente o Comisión de salud. Con el cargo Otro cargo, el detalle es el cargo que se muestra.</span>
+        <span class="description">Opcional, por ejemplo Suplente o Comisión de salud. Con el cargo Otro cargo, el detalle es el cargo que se muestra. Vacío y con una comisión que no es un órgano, se muestra el nombre corto de la comisión.</span>
     </p>
+    <p>
+        <label for="jw_comision"><strong>Comisión u órgano</strong></label><br>
+        <select id="jw_comision" name="jw_comision">
+            <option value="">Ninguna</option>
+            <?php foreach (JW_TIPOS as $tipo => $seccion) : ?>
+                <?php $de_seccion = array_filter($mapa, static fn(array $c): bool => $c['tipo'] === $tipo); ?>
+                <?php if ($de_seccion) : ?>
+                    <optgroup label="<?php echo esc_attr($seccion); ?>">
+                        <?php foreach ($de_seccion as $slug => $datos) : ?>
+                            <option value="<?php echo esc_attr($slug); ?>" <?php selected($comision, $slug); ?>><?php echo esc_html($datos['corto']); ?></option>
+                        <?php endforeach; ?>
+                    </optgroup>
+                <?php endif; ?>
+            <?php endforeach; ?>
+            <?php if ($comision !== '' && !isset($mapa[$comision])) : ?>
+                <option value="<?php echo esc_attr($comision); ?>" selected><?php echo esc_html($comision); ?> (no publicada)</option>
+            <?php endif; ?>
+        </select>
+        <span class="description">Enlaza a la persona con su comisión u órgano para que salga en la ficha.</span>
+    </p>
+    <p>
+        <label for="jw_situacion"><strong>Situación</strong></label>
+        <select id="jw_situacion" name="jw_situacion">
+            <?php foreach (JW_SITUACIONES as $valor => $etiqueta) : ?>
+                <option value="<?php echo esc_attr($valor); ?>" <?php selected($situacion, $valor); ?>><?php echo esc_html($etiqueta); ?></option>
+            <?php endforeach; ?>
+        </select>
+        <label for="jw_desde"><strong>Desde</strong></label>
+        <input type="date" id="jw_desde" name="jw_desde" value="<?php echo esc_attr(jw_fecha(get_post_meta($post->ID, 'jw_desde', true))); ?>">
+    </p>
+    <p class="description">En el sitio solo salen Elección del período, Ad hoc y Elección en asamblea. Desde es la fecha de la resolución, del acta o de la renuncia.</p>
+    <ul class="description" style="list-style:disc;margin-left:1.5em">
+        <li>Si alguien no acepta o renuncia: cambia su situación a No aceptó el cargo o Renuncia, con la fecha en Desde. Si se nombra a alguien ad hoc, crea un registro nuevo con Ad hoc, su fecha y el mismo Orden.</li>
+        <li>Si la asamblea ratifica al ad hoc: su situación pasa a Elección en asamblea y Desde, a la fecha de la asamblea.</li>
+        <li>Si la asamblea cambia al ad hoc: el ad hoc pasa a Reemplazo en asamblea, y la persona elegida va en un registro nuevo con Elección en asamblea.</li>
+        <li>Cuando alguien sale, cambia también el estado de la comisión.</li>
+    </ul>
     <?php
 }
 
@@ -134,7 +207,7 @@ function jw_guardar_dignatario(int $id): void {
     if (!jw_guardar_caja($id, 'jw_dignatario_guardar', 'jw_dignatario_nonce')) {
         return;
     }
-    foreach (['jw_periodo', 'jw_cargo', 'jw_detalle'] as $clave) {
+    foreach (['jw_periodo', 'jw_cargo', 'jw_detalle', 'jw_comision', 'jw_situacion', 'jw_desde'] as $clave) {
         $valor = isset($_POST[$clave]) ? wp_unslash($_POST[$clave]) : '';
         update_post_meta($id, $clave, $valor);
     }
@@ -147,6 +220,7 @@ function jw_columnas_dignatario(array $columnas): array {
         if ($clave === 'title') {
             $nuevas['jw_periodo'] = 'Período';
             $nuevas['jw_cargo'] = 'Cargo';
+            $nuevas['jw_situacion'] = 'Situación';
         }
     }
     return $nuevas;
@@ -157,6 +231,14 @@ function jw_pintar_columna_dignatario(string $columna, int $id): void {
         echo esc_html((string) get_post_meta($id, 'jw_periodo', true));
     } elseif ($columna === 'jw_cargo') {
         $cargo = (string) get_post_meta($id, 'jw_cargo', true);
-        echo esc_html(JW_CARGOS[$cargo] ?? JW_CARGOS['otro']);
+        $slug = (string) get_post_meta($id, 'jw_comision', true);
+        static $mapa = null;
+        $mapa ??= jw_comisiones_mapa();
+        $corto = $slug !== '' ? ' · ' . ($mapa[$slug]['corto'] ?? $slug) : '';
+        echo esc_html((JW_CARGOS[$cargo] ?? JW_CARGOS['otro']) . $corto);
+    } elseif ($columna === 'jw_situacion') {
+        $situacion = jw_enum(get_post_meta($id, 'jw_situacion', true), array_keys(JW_SITUACIONES), 'eleccion');
+        $desde = jw_fecha(get_post_meta($id, 'jw_desde', true));
+        echo esc_html(JW_SITUACIONES[$situacion] . ($desde !== '' ? ' · desde ' . $desde : ''));
     }
 }

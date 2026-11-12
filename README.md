@@ -108,8 +108,8 @@ components/
 lib/
   cms/client.ts         wp(): la única función que habla HTTP con WordPress
   cms/content.ts        consultas y mapeo del JSON de WordPress a tipos de dominio
-  cms/board.ts          getBoardMembers(): dignatarios de un período
-  board.ts              toBoardTerms() e isTerm(): valida el JSON de dignatarios
+  cms/board.ts          getBoardMembers() y getCommissionTerms(): dignatarios de un período y de una comisión
+  board.ts              toBoardTerms(), groupMembers() y commissionTerms(): validan y agrupan el JSON de dignatarios
   html.ts               clean(), text(), isSlug(), truncate()
   images.ts             optimizeImages(): imágenes del contenido por /_next/image
   listing.ts            validación de ?categoria, ?estado y ?page
@@ -140,7 +140,7 @@ wordpress/              plugin jac-el-castillo-web, WordPress local y datos de p
 | `/proyectos/` | Proyectos con filtros `?categoria=<slug>` y `?estado=<valor>`. Un valor que no existe da 404 | En cada visita (`force-dynamic`), con datos en caché |
 | `/proyectos/<slug>/` | Ficha del proyecto, con sus avances (hasta 6 entradas de la categoría con el mismo slug) | ISR |
 | `/contacto/` | Datos de contacto de `lib/site.ts` | Estática, en el build |
-| `/<ruta>/` | Cualquier entrada o página de WordPress en la ruta de su enlace (`link`), incluidas las páginas hijas (`/historia/2022-2026/`). Una página con páginas hijas las lista como tarjetas bajo su contenido. Una página cuyo slug es un período (`AAAA-AAAA`) muestra además su grilla de Dignatarios. Entrar a una página hija por su ruta plana redirige (308) a la anidada | ISR: se genera en la primera visita y se renueva cada 5 minutos |
+| `/<ruta>/` | Cualquier entrada o página de WordPress en la ruta de su enlace (`link`), incluidas las páginas hijas (`/historia/2022-2026/`). Una página con páginas hijas las lista como tarjetas bajo su contenido. Una página cuyo slug es un período (`AAAA-AAAA`) muestra además sus Dignatarios, con un título por sección. Entrar a una página hija por su ruta plana redirige (308) a la anidada | ISR: se genera en la primera visita y se renueva cada 5 minutos |
 | `/robots.txt` | `Disallow: /` mientras sea prototipo | Estática |
 
 Las URLs terminan en `/` (`trailingSlash: true`), igual que en WordPress, para que las direcciones no cambien el día del cambio de dominio.
@@ -241,11 +241,37 @@ En <nombre del sitio> → Dignatarios → Añadir nuevo, una entrada por persona
 - **Título:** el nombre completo.
 - **Imagen destacada:** la foto. Súbela solo con autorización de la persona. Sin foto se muestra la marca 2x2.
 - **Período:** `AAAA-AAAA`, con el año final mayor que el inicial (por ejemplo `2026-2030`). Sin un período válido, la persona no se publica.
-- **Cargo:** de una lista fija. El orden de la grilla es el de la lista: Presidencia, Vicepresidencia, Tesorería, Secretaría, Fiscalía, Comisión de convivencia y conciliación, Delegación ante Asocomunal, Coordinación de comisión de trabajo y Otro cargo.
-- **Detalle:** texto opcional de hasta 80 caracteres, como "Suplente". Con Otro cargo, el detalle es el cargo que se muestra.
+- **Cargo:** de una lista fija. El orden de la grilla es el de la lista: Presidencia, Vicepresidencia, Tesorería, Secretaría, Fiscalía, Comisión de convivencia y conciliación, Delegación ante Asocomunal, Coordinación de comisión de trabajo, Integrante de comisión de trabajo y Otro cargo.
+- **Detalle:** texto opcional de hasta 80 caracteres, como "Suplente". Con Otro cargo, el detalle es el cargo que se muestra. Vacío y con una comisión que no es un órgano de la Junta, se muestra el nombre corto de la comisión (por ejemplo "Cultura").
+- **Comisión u órgano:** la comisión o el órgano al que pertenece la persona, o Ninguna. Con eso sale en la ficha de la comisión, en "Integrantes AAAA-AAAA". Junta Directiva, Fiscalía y Convivencia muestran a sus integrantes porque se enlazan al órgano. Si la comisión no está publicada, el enlace no sale en el sitio.
+- **Situación:** cómo ocupa el cargo. Por defecto es Elección del período. En el sitio solo salen Elección del período (sin nota), Ad hoc ("Ad hoc, desde mar 2027") y Elección en asamblea ("Elección en asamblea, desde jun 2027"). No aceptó el cargo, Renuncia y Reemplazo en asamblea sacan a la persona del sitio, y su historial queda solo en wp-admin.
+- **Desde:** la fecha desde la que rige la situación: la resolución, el acta ad hoc, el acta de asamblea o la renuncia.
 - **Orden** (caja Atributos): solo desempata a personas con el mismo cargo.
 
-Los editores también pueden crear y editar dignatarios por la API REST de WordPress, en `/wp-json/wp/v2/jw_dignatario` (con sesión o contraseña de aplicación). Período, Cargo y Detalle van dentro de `meta`: `jw_periodo`, `jw_cargo` y `jw_detalle`.
+Cómo registra la Junta cada caso:
+
+| Caso | Qué se hace |
+|---|---|
+| No acepta o renuncia | Situación "No aceptó el cargo" o "Renuncia", con Desde en la fecha. Si se nombra a alguien ad hoc, va en un registro nuevo con "Ad hoc", su Desde y el mismo Orden. |
+| La asamblea ratifica al ad hoc | Su situación pasa a "Elección en asamblea" y Desde, a la fecha de la asamblea. |
+| La asamblea cambia al ad hoc | El ad hoc pasa a "Reemplazo en asamblea". La persona elegida va en un registro nuevo con "Elección en asamblea". |
+
+Cuando alguien sale, cambia también el estado de la comisión: el estado no se calcula.
+
+**Secciones.** `/historia/<período>/` pinta un título por sección, en este orden y solo para las que tienen personas:
+
+| Sección | Cargos |
+|---|---|
+| Junta directiva | Presidencia, Vicepresidencia, Tesorería, Secretaría |
+| Órgano de control | Fiscalía |
+| Convivencia y conciliación | Comisión de convivencia y conciliación |
+| Delegación ante Asocomunal | Delegación ante Asocomunal (las suplencias llevan el detalle "Suplente") |
+| Comisiones de trabajo | Coordinación e Integrante |
+| Otros cargos | Otro cargo |
+
+En la ficha de cada comisión, "Integrantes 2026-2030" y, debajo, "Integrantes 2022-2026" salen antes del texto de las funciones, solo para los períodos que tienen personas.
+
+Los editores también pueden crear y editar dignatarios por la API REST de WordPress, en `/wp-json/wp/v2/jw_dignatario` (con sesión o contraseña de aplicación). Período, Cargo, Detalle, Comisión, Situación y Desde van dentro de `meta`: `jw_periodo`, `jw_cargo`, `jw_detalle`, `jw_comision` (slug), `jw_situacion` y `jw_desde`.
 
 Para que un período se vea en el sitio nuevo, debe existir su página como hija de Nuestra historia, con el período como slug (por ejemplo `2026-2030`). Un borrador o una entrada con contraseña no se publica.
 
@@ -283,7 +309,7 @@ En <nombre del sitio> → Comisiones → Añadir nueva:
 - **Título:** el nombre estatutario. El **contenido** son las funciones (Editor clásico) y el **resumen** es el extracto.
 - **Datos de la comisión:** nombre corto (hasta 40 caracteres, es el título de la tarjeta), sección, estado y fundamento (hasta 80 caracteres, por ejemplo "Estatutos, art. 58"; vacío, la ficha dice "Por verificar").
 - **Secciones (tipos), en este orden:** Comisiones de trabajo, Comisiones accidentales, Nuevas iniciativas y Órganos de la Junta. Una sección sin comisiones no se muestra.
-- **Estados:** Activa, Sin coordinación, En conformación y Pendiente de verificar. Se elige a mano: no se calcula, porque sin personas cargadas todas saldrían sin coordinación. Un valor inválido se guarda como `ordinaria` y `verificar`.
+- **Estados:** Activa, Sin coordinación, En conformación y Pendiente de verificar. Se elige a mano y no se calcula. Cuando alguien sale, cambia también el estado de la comisión. Un valor inválido se guarda como `ordinaria` y `verificar`.
 - **Orden** (caja Atributos): la posición dentro de su sección, menor primero y luego por título.
 - **Rendición de cuentas:** al publicar una comisión se crea la categoría de entradas con su mismo slug, hija de la categoría `comisiones` si existe (si la categoría ya existe, se reutiliza). Las entradas publicadas en ella salen como "Rendición de cuentas" en la ficha, con el enlace "Ver todos" a Noticias.
 
@@ -300,12 +326,14 @@ Un borrador o una comisión con contraseña no se publica. El tipo no tiene URL 
 
 #### Carga por script
 
-Las 21 comisiones y órganos de los estatutos (junio de 2024) se cargan con `cargas/cargar-comisiones.js`. Esa carpeta no está en git, porque el script trae datos reales (candidatos a coordinación del slice 2). Flujo:
+Las 21 comisiones y órganos de los estatutos (junio de 2024) se cargan con `cargas/cargar-comisiones.js`. Esa carpeta no está en git, porque los scripts traen nombres reales. Flujo:
 
-1. Subir el zip del plugin 0.5.0 (Reemplazar el actual) y purgar LiteSpeed.
+1. Subir el zip del plugin 0.6.0 (Reemplazar el actual) y purgar LiteSpeed.
 2. En una página de wp-admin con la sesión iniciada, pegar el script en la consola del navegador. Con `APLICAR = false` solo lee y muestra una tabla con lo que haría.
 3. Revisar la tabla y los estados de la lista `COMISIONES` del script. Con `APLICAR = true` crea la categoría Comisiones y las comisiones que falten. Es idempotente por slug: lo que ya existe se reutiliza.
-4. Con `ACTUALIZAR = true` y `APLICAR = true`, las comisiones que ya existen reciben los campos que difieran (título, resumen, funciones, orden, nombre corto, sección, estado y fundamento). En simulación lista qué campos cambiarían en cada una.
+4. Con `ACTUALIZAR = true` y `APLICAR = true`, las comisiones que ya existen reciben los campos que difieran (título, resumen, funciones, orden, nombre corto, sección y fundamento). El estado se fija solo al crear: después lo maneja la Junta en wp-admin. En simulación lista qué campos cambiarían en cada una.
+
+Los dignatarios (2026-2030 y los coordinadores de 2022-2026) se cargan con `cargas/cargar-historia.js`, con el mismo flujo: simulación con `APLICAR = false`, y después `APLICAR = true`. Busca cada registro por período, cargo y título (el nombre o el nombre anterior), así que renombra los que ya existen sin duplicarlos. Con `ACTUALIZAR = true` corrige título, Orden, comisión y detalle. La situación, Desde y la foto se fijan solo al crear. Antes de aplicar, verifica que el plugin 0.6.0 esté activo y que existan las comisiones. Si falta alguna foto, no crea nada.
 
 #### Qué dicen los estatutos
 
@@ -326,14 +354,18 @@ Para ver la app contra ese WordPress: `pnpm build` y `WP_URL=http://localhost:80
 
 ### La ruta
 
-`GET /wp-json/jac-web/v1/dignatarios`: pública, de solo lectura y con `Cache-Control: public, max-age=300`. Los períodos van del más nuevo al más antiguo, y dentro de cada uno, por cargo, después por Orden y después por nombre. Nunca salen autor, correo ni teléfono.
+`GET /wp-json/jac-web/v1/dignatarios`: pública, de solo lectura y con `Cache-Control: public, max-age=300`. Los períodos van del más nuevo al más antiguo, y dentro de cada uno, por cargo, después por Orden y después por nombre. Solo salen las situaciones Elección del período, Ad hoc y Elección en asamblea. Nunca salen autor, correo ni teléfono.
 
 ```json
 { "periodos": [ { "periodo": "2026-2030", "dignatarios": [
-  { "id": 12, "nombre": "Persona de prueba Uno", "cargo": "presidencia", "cargo_nombre": "Presidencia", "detalle": "",
+  { "id": 12, "nombre": "Persona de prueba Uno", "cargo": "coordinacion", "cargo_nombre": "Coordinación de comisión de trabajo",
+    "detalle": "Cultura", "grupo": "Comisiones de trabajo", "comision": "cultura",
+    "situacion": "ad-hoc", "situacion_nombre": "Ad hoc", "desde": "2027-03-01",
     "foto": { "url": "https://jacelcastillo.com.co/wp-content/uploads/...", "ancho": 683, "alto": 1024 } }
 ] } ] }
 ```
+
+`grupo` es la sección del cargo. `comision` es el slug de la comisión u órgano, o vacío si no hay enlace o la comisión no está publicada. `situacion_nombre` va vacío para `eleccion`. `desde` va vacío o como AAAA-MM-DD.
 
 `foto` es `null` si la persona no tiene imagen destacada. La app solo acepta fotos de `/wp-content/uploads/` del dominio de WordPress.
 

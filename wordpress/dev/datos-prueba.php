@@ -172,6 +172,19 @@ jw_prueba_dignatario('Persona de prueba Cinco', '2026-2030', 'conciliacion', '',
 jw_prueba_dignatario('Persona de prueba Dos', '2026-2030', 'vicepresidencia', 'Suplente');
 jw_prueba_dignatario('Persona de prueba Seis', '2026-2030', 'otro', 'Comisión de salud');
 jw_prueba_dignatario('Persona de prueba Ocho', '2026-2030', 'fiscalia');
+jw_prueba_dignatario('Persona de prueba Doce', '2026-2030', 'coordinacion', '', 0, ['meta_input' => ['jw_comision' => 'comision-de-prueba-ordinaria']]);
+jw_prueba_dignatario('Persona de prueba Trece', '2026-2030', 'integrante', '', 0, ['meta_input' => [
+    'jw_comision' => 'comision-de-prueba-ordinaria',
+    'jw_situacion' => 'ad-hoc',
+    'jw_desde' => '2027-03-01',
+]]);
+jw_prueba_dignatario('Persona de prueba Catorce', '2026-2030', 'integrante', '', 1, ['meta_input' => [
+    'jw_comision' => 'comision-de-prueba-ordinaria',
+    'jw_situacion' => 'renuncia',
+    'jw_desde' => '2027-02-01',
+]]);
+jw_prueba_dignatario('Persona de prueba Quince', '2026-2030', 'fiscalia', '', 1, ['meta_input' => ['jw_comision' => 'organo-de-prueba']]);
+jw_prueba_dignatario('Persona de prueba Dieciséis', '2026-2030', 'coordinacion', '', 1, ['meta_input' => ['jw_comision' => 'no-existe']]);
 
 jw_prueba_dignatario('Persona de prueba Diez', '2022-2026', 'tesoreria');
 jw_prueba_dignatario('Persona de prueba Nueve', '2022-2026', 'presidencia');

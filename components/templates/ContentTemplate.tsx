@@ -13,6 +13,7 @@ type ContentTemplateProps = {
   intro?: string;
   date?: string;
   html?: SafeHtml;
+  lead?: ReactNode;
   aside?: ReactNode;
   items?: Summary[];
   itemsTitle?: string;
@@ -26,6 +27,7 @@ export function ContentTemplate({
   intro,
   date,
   html,
+  lead,
   aside,
   items,
   itemsTitle,
@@ -34,6 +36,7 @@ export function ContentTemplate({
 }: ContentTemplateProps) {
   const body = (
     <>
+      {lead && <div className="mb-10">{lead}</div>}
       {html && <Prose html={html} />}
       {children}
     </>

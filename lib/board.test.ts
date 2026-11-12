@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { isTerm, toBoardTerms } from "./board.ts";
+import { commissionTerms, groupMembers, isTerm, toBoardTerms } from "./board.ts";
 
 const UPLOAD = "https://jacelcastillo.com.co/wp-content/uploads/2026/01/persona.jpg";
 
@@ -91,4 +91,47 @@ test("isTerm accepts YYYY-YYYY only", () => {
   for (const slug of ["2026", "2026-30", "26-2030", "2026-2030-1", "a2026-2030", "2026-2030a", "historia", ""]) {
     assert.equal(isTerm(slug), false);
   }
+});
+
+const members = (...rows: unknown[]) => toBoardTerms(wrap(...rows))[0].members;
+
+test("section, commission and note keys are parsed", () => {
+  const [m] = members(
+    member({ grupo: "Comisiones de trabajo", comision: "cultura", situacion: "ad-hoc", situacion_nombre: "Ad hoc", desde: "2027-03-01" }),
+  );
+  assert.equal(m.group, "Comisiones de trabajo");
+  assert.equal(m.commission, "cultura");
+  assert.equal(m.note, "Ad hoc, desde mar 2027");
+});
+
+test("the note is only the label without a valid date, and absent for an election", () => {
+  assert.equal(members(member({ situacion_nombre: "Elección en asamblea", desde: "" }))[0].note, "Elección en asamblea");
+  assert.equal(members(member({ situacion_nombre: "Ad hoc", desde: "2027-02-30x" }))[0].note, "Ad hoc");
+  assert.equal(members(member({ situacion_nombre: "", desde: "2027-03-01" }))[0].note, undefined);
+});
+
+test("rows from the old plugin keep their exact shape", () => {
+  assert.deepEqual(members(member())[0], { name: "Persona de prueba Uno", role: "Presidencia", detail: "" });
+});
+
+test("groupMembers groups by label in order of first appearance", () => {
+  const rows = members(
+    member({ nombre: "A", grupo: "Junta" }),
+    member({ nombre: "B", grupo: "Control" }),
+    member({ nombre: "C", grupo: "Junta" }),
+    member({ nombre: "D" }),
+  );
+  assert.deepEqual(
+    groupMembers(rows).map((g) => [g.label, g.members.map((m) => m.name)]),
+    [["Junta", ["A", "C"]], ["Control", ["B"]], ["", ["D"]]],
+  );
+});
+
+test("commissionTerms keeps only the commission's people and drops empty terms", () => {
+  const terms = [
+    { term: "2026-2030", members: members(member({ nombre: "A", comision: "cultura" }), member({ nombre: "B", comision: "deporte" })) },
+    { term: "2022-2026", members: members(member({ nombre: "C", comision: "deporte" })) },
+  ];
+  assert.deepEqual(commissionTerms(terms, "cultura").map((t) => [t.term, t.members.map((m) => m.name)]), [["2026-2030", ["A"]]]);
+  assert.deepEqual(commissionTerms(terms, "no-existe"), []);
 });

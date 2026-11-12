@@ -76,6 +76,27 @@ function jw_registrar_comisiones(): void {
     ]);
 }
 
+/** @return array<string, array{corto: string, tipo: string}> */
+function jw_comisiones_mapa(): array {
+    $posts = get_posts([
+        'post_type' => 'jw_comision',
+        'post_status' => 'publish',
+        'has_password' => false,
+        'posts_per_page' => -1,
+        'no_found_rows' => true,
+        'orderby' => ['menu_order' => 'ASC', 'title' => 'ASC'],
+    ]);
+    $mapa = [];
+    foreach ($posts as $post) {
+        $corto = jw_texto(jw_plano(get_post_meta($post->ID, 'jw_nombre_corto', true)), 40);
+        $mapa[$post->post_name] = [
+            'corto' => $corto !== '' ? $corto : jw_plano($post->post_title),
+            'tipo' => jw_enum(get_post_meta($post->ID, 'jw_tipo', true), array_keys(JW_TIPOS), 'ordinaria'),
+        ];
+    }
+    return $mapa;
+}
+
 function jw_agregar_caja_comision(): void {
     remove_meta_box('postcustom', 'jw_comision', 'normal');
     add_meta_box('jw_comision_datos', 'Datos de la comisión', 'jw_pintar_caja_comision', 'jw_comision', 'normal', 'high');

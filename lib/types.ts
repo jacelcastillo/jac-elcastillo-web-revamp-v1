@@ -1,6 +1,14 @@
 export type SafeHtml = string & { readonly __brand: "SafeHtml" };
 export type Img = { src: string; alt: string; width: number; height: number };
-export type BoardMember = { name: string; role: string; detail: string; photo?: Img };
+export type BoardMember = {
+  name: string;
+  role: string;
+  detail: string;
+  photo?: Img;
+  group?: string;
+  commission?: string;
+  note?: string;
+};
 export type BoardTerm = { term: string; members: BoardMember[] };
 export type Category = { slug: string; name: string };
 export type Summary = {

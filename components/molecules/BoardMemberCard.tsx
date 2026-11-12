@@ -3,10 +3,10 @@ import { Heading } from "@/components/atoms/Heading";
 import { Tiles } from "@/components/atoms/Tiles";
 import type { BoardMember } from "@/lib/types";
 
-type BoardMemberCardProps = { member: BoardMember };
+type BoardMemberCardProps = { member: BoardMember; level?: 3 | 4 };
 
-export function BoardMemberCard({ member }: BoardMemberCardProps) {
-  const { photo, name, role, detail } = member;
+export function BoardMemberCard({ member, level = 3 }: BoardMemberCardProps) {
+  const { photo, name, role, detail, note } = member;
   return (
     <article className="flex w-full flex-col overflow-hidden rounded-2xl border border-line bg-white">
       <div className="relative aspect-square rounded-t-2xl bg-paper">
@@ -23,11 +23,12 @@ export function BoardMemberCard({ member }: BoardMemberCardProps) {
         )}
       </div>
       <div className="flex flex-col gap-1 p-3 text-sm sm:p-5 sm:text-base">
-        <Heading level={3} size="sm">
+        <Heading level={level} size="sm">
           {name}
         </Heading>
         <p>{role}</p>
         {detail && <p className="text-muted">{detail}</p>}
+        {note && <p className="font-semibold">{note}</p>}
       </div>
     </article>
   );

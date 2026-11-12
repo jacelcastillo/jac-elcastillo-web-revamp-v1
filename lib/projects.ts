@@ -1,4 +1,4 @@
-import { isRecord, str, toCategory, toPhoto } from "./board.ts";
+import { date, isRecord, month, str, toCategory, toPhoto } from "./board.ts";
 import { clean, isSlug } from "./html.ts";
 import { optimizeImages } from "./images.ts";
 import type { Category, Project, ProjectsPage } from "./types.ts";
@@ -10,12 +10,8 @@ export const STATUS_TONES: Record<string, "leaf" | "sun" | "blue" | "muted"> = {
   suspendido: "muted",
 };
 
-const DATE = /^\d{4}-\d{2}-\d{2}$/;
-
 const count = (value: unknown, max = Number.MAX_SAFE_INTEGER) =>
   typeof value === "number" && Number.isInteger(value) && value > 0 ? Math.min(value, max) : 0;
-
-const date = (value: unknown) => (DATE.test(str(value)) ? str(value) : "");
 
 function toProject(raw: unknown, statuses: Category[]): Project[] {
   if (!isRecord(raw) || typeof raw.slug !== "string" || !isSlug(raw.slug)) return [];
@@ -79,18 +75,6 @@ const money = new Intl.NumberFormat("es-CO", {
 });
 
 export const formatCOP = (value: number) => money.format(value);
-
-const monthYear = new Intl.DateTimeFormat("es-CO", {
-  month: "short",
-  year: "numeric",
-  timeZone: "America/Bogota",
-});
-
-function month(value: string) {
-  const parts = monthYear.formatToParts(new Date(`${value}T12:00:00Z`));
-  const part = (type: string) => parts.find((p) => p.type === type)?.value;
-  return `${part("month")} ${part("year")}`;
-}
 
 export function periodText(status: string, start?: string, end?: string): string {
   switch (status) {

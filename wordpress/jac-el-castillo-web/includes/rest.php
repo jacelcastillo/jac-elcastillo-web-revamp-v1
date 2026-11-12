@@ -74,23 +74,40 @@ function jw_periodos_publicos(): array {
     ]);
 
     $cargos = array_keys(JW_CARGOS);
+    $comisiones = jw_comisiones_mapa();
     $porPeriodo = [];
     foreach ($posts as $post) {
         $periodo = jw_periodo(get_post_meta($post->ID, 'jw_periodo', true));
         if ($periodo === '') {
             continue;
         }
+        $situacion = jw_enum(get_post_meta($post->ID, 'jw_situacion', true), array_keys(JW_SITUACIONES), 'eleccion');
+        if (!in_array($situacion, JW_SITUACIONES_PUBLICAS, true)) {
+            continue;
+        }
         $cargo = jw_enum(get_post_meta($post->ID, 'jw_cargo', true), $cargos, 'otro');
         $detalle = jw_texto(jw_plano(get_post_meta($post->ID, 'jw_detalle', true)), 80);
         $esOtro = $cargo === 'otro' && $detalle !== '';
+        $cargoNombre = $esOtro ? $detalle : JW_CARGOS[$cargo];
+        $detalle = $esOtro ? '' : $detalle;
+        $slug = get_post_meta($post->ID, 'jw_comision', true);
+        $comision = is_string($slug) && isset($comisiones[$slug]) ? $slug : '';
+        if ($detalle === '' && $comision !== '' && $comisiones[$comision]['tipo'] !== 'organo') {
+            $detalle = $comisiones[$comision]['corto'];
+        }
         $porPeriodo[$periodo][] = [
             'posicion' => array_search($cargo, $cargos, true),
             'dignatario' => [
                 'id' => $post->ID,
                 'nombre' => jw_plano($post->post_title),
                 'cargo' => $cargo,
-                'cargo_nombre' => $esOtro ? $detalle : JW_CARGOS[$cargo],
-                'detalle' => $esOtro ? '' : $detalle,
+                'cargo_nombre' => $cargoNombre,
+                'detalle' => $detalle,
+                'grupo' => JW_GRUPOS[$cargo],
+                'comision' => $comision,
+                'situacion' => $situacion,
+                'situacion_nombre' => $situacion === 'eleccion' ? '' : JW_SITUACIONES[$situacion],
+                'desde' => jw_fecha(get_post_meta($post->ID, 'jw_desde', true)),
                 'foto' => jw_foto($post->ID),
             ],
         ];
