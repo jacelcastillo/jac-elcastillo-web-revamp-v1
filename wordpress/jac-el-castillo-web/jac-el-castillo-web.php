@@ -2,14 +2,14 @@
 /**
  * Plugin Name: JAC El Castillo · Sitio web
  * Description: Contenido del sitio web de la JAC El Castillo que se edita en wp-admin, como los dignatarios de cada período, los proyectos y las comisiones, publicado por rutas REST de solo lectura.
- * Version: 0.6.0
+ * Version: 0.7.0
  * Requires PHP: 8.1
  * Text Domain: jac-el-castillo-web
  */
 
 defined('ABSPATH') || exit;
 
-const JW_VERSION = '0.6.0';
+const JW_VERSION = '0.7.0';
 const JW_MENU = 'jac-el-castillo';
 
 require_once __DIR__ . '/includes/sanitizar.php';

@@ -168,7 +168,7 @@ check('proyectos: lista de estados exacta', JSON.stringify(datosProyectos.estado
 const proyectos = Array.isArray(datosProyectos.proyectos) ? datosProyectos.proyectos : []
 const prohibidasProyectos = llavesProhibidas(datosProyectos)
 check('proyectos: ninguna llave de autor, correo, usuario o teléfono', prohibidasProyectos.length === 0, prohibidasProyectos.join(','))
-const LLAVES_PROYECTO = ['slug', 'titulo', 'resumen', 'estado', 'avance', 'inicio', 'fin', 'presupuesto', 'ubicacion', 'participantes', 'aliados', 'categorias', 'imagen', 'contenido']
+const LLAVES_PROYECTO = ['slug', 'titulo', 'resumen', 'estado', 'avance', 'inicio', 'fin', 'presupuesto', 'ubicacion', 'participantes', 'aliados', 'categorias', 'comision', 'imagen', 'contenido']
 check(
   'proyectos: cada proyecto tiene exactamente las llaves del contrato',
   proyectos.every(
@@ -177,6 +177,7 @@ check(
       mismasLlaves(p.presupuesto, ['total', 'ejecutado']) &&
       Array.isArray(p.categorias) &&
       p.categorias.every((c) => mismasLlaves(c, ['slug', 'nombre'])) &&
+      (p.comision === null || mismasLlaves(p.comision, ['slug', 'nombre'])) &&
       (p.imagen === null || mismasLlaves(p.imagen, ['url', 'ancho', 'alto'])),
   ),
 )
@@ -266,6 +267,8 @@ const sinDatos = proyectos.find((p) => p.slug === 'proyecto-de-prueba-huerta')
 check('proyectos: la huerta no tiene fin ni presupuesto', sinDatos?.fin === '' && sinDatos.presupuesto.total === 0 && sinDatos.imagen === null, JSON.stringify(sinDatos))
 const cancha = proyectos.find((p) => p.slug === 'proyecto-de-prueba-cancha')
 check('proyectos: la cancha no tiene ubicación ni participantes', cancha?.ubicacion === '' && cancha.participantes === 0, JSON.stringify(cancha))
+check('proyectos: el parque trae su comisión con el nombre corto', JSON.stringify(parque?.comision) === JSON.stringify({ slug: 'comision-de-prueba-ordinaria', nombre: 'Ordinaria de prueba' }), JSON.stringify(parque?.comision))
+check('proyectos: comisión inexistente o en borrador sale null', sinDatos?.comision === null && cancha?.comision === null)
 check('proyectos: tres proyectos en tres estados', proyectos.length === 3 && new Set(proyectos.map((p) => p.estado)).size === 3, String(proyectos.length))
 
 check('comisiones: Cache-Control con max-age=300', /max-age=300/.test(resComisiones.headers.get('cache-control') ?? ''), resComisiones.headers.get('cache-control') ?? '')
@@ -436,7 +439,7 @@ try {
       content: '<p>Ficha REST</p>',
       menu_order: 9,
       featured_media: fotoId,
-      meta: { jw_estado: 'completado', jw_avance: 150, jw_inicio: '2025-02-30', jw_presupuesto_total: 1000 },
+      meta: { jw_estado: 'completado', jw_avance: 150, jw_inicio: '2025-02-30', jw_presupuesto_total: 1000, jw_comision: 'Comisión Inventada' },
     }),
   })
   check('autenticado: POST crea el proyecto (201)', proyectoCreado.status === 201, `${proyectoCreado.status} ${cuerpoProyecto.slice(0, 200)}`)
@@ -460,6 +463,12 @@ try {
       proyectoPublico.imagen !== null,
     JSON.stringify(proyectoPublico),
   )
+  const { texto: cuerpoEdicion } = await pedir(`/wp-json/wp/v2/jw_proyecto/${proyectoId}?context=edit`, { headers: auth })
+  let guardadoComision
+  try {
+    guardadoComision = JSON.parse(cuerpoEdicion).meta?.jw_comision
+  } catch {}
+  check('la comisión por REST se guarda como slug y, sin comisión con ese slug, sale null', guardadoComision === 'comision-inventada' && proyectoPublico?.comision === null, `${guardadoComision} ${JSON.stringify(proyectoPublico?.comision)}`)
   // WordPress rechaza con 400 un texto en un campo entero, y el valor guardado no cambia.
   for (const [invalido, estadoEsperado, guardado] of [[-5, 200, 0], ['abc', 400, 7]]) {
     await pedir(`/wp-json/wp/v2/jw_proyecto/${proyectoId}`, { method: 'POST', headers: auth, body: JSON.stringify({ meta: { jw_participantes: 7 } }) })

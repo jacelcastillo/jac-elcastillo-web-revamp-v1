@@ -136,7 +136,7 @@ wordpress/              plugin jac-el-castillo-web, WordPress local y datos de p
 | `/` | Hero con accesos a noticias y contacto, últimas 3 noticias, "Quiénes somos" (página `nosotros`) y "Rendición de cuentas" | En cada visita (`force-dynamic`), con los datos de WordPress en caché |
 | `/noticias/` | Entradas, 9 por página. `?categoria=<slug>` filtra y `?page=<n>` pagina | En cada visita (lee `searchParams`), con datos en caché |
 | `/comisiones/` | Comisiones y órganos de la Junta en 4 secciones, en el orden de `tipos`. Sin comisiones dice "No hay comisiones publicadas." | En cada visita (`force-dynamic`), con datos en caché |
-| `/comisiones/<slug>/` | Ficha de la comisión: estado, fundamento, funciones y rendición de cuentas (hasta 6 entradas de la categoría con el mismo slug) | ISR |
+| `/comisiones/<slug>/` | Ficha de la comisión: estado, fundamento, funciones, proyectos a su cargo (debajo de los integrantes) y rendición de cuentas (hasta 6 entradas de la categoría con el mismo slug) | ISR |
 | `/proyectos/` | Proyectos con filtros `?categoria=<slug>` y `?estado=<valor>`. Un valor que no existe da 404 | En cada visita (`force-dynamic`), con datos en caché |
 | `/proyectos/<slug>/` | Ficha del proyecto, con sus avances (hasta 6 entradas de la categoría con el mismo slug) | ISR |
 | `/contacto/` | Datos de contacto de `lib/site.ts` | Estática, en el build |
@@ -283,7 +283,7 @@ En <nombre del sitio> → Proyectos → Añadir nuevo:
 
 - **Título y contenido:** el nombre y la ficha (Editor clásico). El **resumen** es el extracto y la **portada** es la imagen destacada.
 - **Categorías de proyecto:** casillas propias de los proyectos, que alimentan el filtro.
-- **Datos del proyecto:** estado (En planificación, En progreso, Completado o Suspendido), avance de 0 a 100, fechas de inicio y fin opcionales, ubicación (hasta 80 caracteres), participantes (entero desde 0), presupuesto total y ejecutado en pesos enteros, y aliados de hasta 300 caracteres. Toda tarjeta muestra siempre las mismas filas: lo que no tiene dato dice "Por definir" (ubicación vacía, participantes 0, presupuesto total 0, aliados vacío), y el período se escribe según el estado, por ejemplo "Inicio por definir" o "En curso hasta dic 2024".
+- **Datos del proyecto:** estado (En planificación, En progreso, Completado o Suspendido), avance de 0 a 100, fechas de inicio y fin opcionales, ubicación (hasta 80 caracteres), participantes (entero desde 0), presupuesto total y ejecutado en pesos enteros, aliados de hasta 300 caracteres y la **comisión responsable** (una de las comisiones publicadas, o Ninguna). La ficha del proyecto la muestra como "Responsable: <comisión>" con un enlace a la comisión, y la página de cada comisión lista sus proyectos con las mismas tarjetas de `/proyectos/`. Toda tarjeta muestra siempre las mismas filas: lo que no tiene dato dice "Por definir" (ubicación vacía, participantes 0, presupuesto total 0, aliados vacío), y el período se escribe según el estado, por ejemplo "Inicio por definir" o "En curso hasta dic 2024".
 - **Orden:** menor primero, y luego por título.
 - **Avances:** al publicar un proyecto se crea la categoría de entradas con su mismo slug, hija de la categoría `proyectos` si existe. Las entradas publicadas en ella salen como avances en la ficha.
 
@@ -297,8 +297,11 @@ El tipo `project` de Divi queda oculto. Un borrador o un proyecto con contraseñ
     "inicio": "2024-03-01", "fin": "", "presupuesto": { "total": 0, "ejecutado": 0 },
     "ubicacion": "", "participantes": 0, "aliados": "",
     "categorias": [ { "slug": "obras", "nombre": "Obras" } ],
+    "comision": { "slug": "cultura", "nombre": "Cultura" },
     "imagen": { "url": "...", "ancho": 800, "alto": 500 }, "contenido": "<p>...</p>" } ] }
 ```
+
+`comision` es `null` si el proyecto no tiene comisión o la que eligió no está publicada. `nombre` es el nombre corto de la comisión.
 
 ### Comisiones
 

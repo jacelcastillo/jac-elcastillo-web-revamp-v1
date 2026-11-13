@@ -97,6 +97,28 @@ function jw_comisiones_mapa(): array {
     return $mapa;
 }
 
+function jw_select_comision(string $valor): void {
+    $mapa = jw_comisiones_mapa();
+    ?>
+    <select id="jw_comision" name="jw_comision">
+        <option value="">Ninguna</option>
+        <?php foreach (JW_TIPOS as $tipo => $seccion) : ?>
+            <?php $de_seccion = array_filter($mapa, static fn(array $c): bool => $c['tipo'] === $tipo); ?>
+            <?php if ($de_seccion) : ?>
+                <optgroup label="<?php echo esc_attr($seccion); ?>">
+                    <?php foreach ($de_seccion as $slug => $datos) : ?>
+                        <option value="<?php echo esc_attr($slug); ?>" <?php selected($valor, $slug); ?>><?php echo esc_html($datos['corto']); ?></option>
+                    <?php endforeach; ?>
+                </optgroup>
+            <?php endif; ?>
+        <?php endforeach; ?>
+        <?php if ($valor !== '' && !isset($mapa[$valor])) : ?>
+            <option value="<?php echo esc_attr($valor); ?>" selected><?php echo esc_html($valor); ?> (no publicada)</option>
+        <?php endif; ?>
+    </select>
+    <?php
+}
+
 function jw_agregar_caja_comision(): void {
     remove_meta_box('postcustom', 'jw_comision', 'normal');
     add_meta_box('jw_comision_datos', 'Datos de la comisión', 'jw_pintar_caja_comision', 'jw_comision', 'normal', 'high');

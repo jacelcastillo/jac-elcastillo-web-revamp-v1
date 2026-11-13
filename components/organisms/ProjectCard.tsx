@@ -8,9 +8,9 @@ import { ProjectStats } from "@/components/molecules/ProjectStats";
 import { STATUS_TONES } from "@/lib/projects";
 import type { Project } from "@/lib/types";
 
-type ProjectCardProps = { project: Project };
+type ProjectCardProps = { project: Project; level?: 2 | 3 };
 
-export function ProjectCard({ project }: ProjectCardProps) {
+export function ProjectCard({ project, level = 2 }: ProjectCardProps) {
   const { image, status, categories } = project;
   return (
     <article className="relative flex w-full flex-col overflow-hidden rounded-2xl border border-line bg-white transition motion-safe:hover:-translate-y-1 motion-safe:hover:shadow-lg">
@@ -40,7 +40,7 @@ export function ProjectCard({ project }: ProjectCardProps) {
             ))}
           </div>
         )}
-        <Heading level={2} size="sm">
+        <Heading level={level} size="sm">
           <Link href={`/proyectos/${project.slug}/`} className="after:absolute after:inset-0">
             {project.title}
           </Link>

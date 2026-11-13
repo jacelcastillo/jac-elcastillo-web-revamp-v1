@@ -123,6 +123,9 @@ function jw_registrar_proyectos(): void {
     register_post_meta('jw_proyecto', 'jw_aliados', $meta + [
         'sanitize_callback' => static fn($v): string => jw_parrafo($v, 300),
     ]);
+    register_post_meta('jw_proyecto', 'jw_comision', $meta + [
+        'sanitize_callback' => static fn($v): string => sanitize_title(is_string($v) ? $v : ''),
+    ]);
 }
 
 function jw_agregar_caja_proyecto(): void {
@@ -174,6 +177,11 @@ function jw_pintar_caja_proyecto(WP_Post $post): void {
         <textarea id="jw_aliados" name="jw_aliados" class="large-text" rows="3" maxlength="300"><?php echo esc_textarea((string) get_post_meta($post->ID, 'jw_aliados', true)); ?></textarea>
         <span class="description">Hasta 300 caracteres, por ejemplo entidades que financian o apoyan el proyecto.</span>
     </p>
+    <p>
+        <label for="jw_comision"><strong>Comisión responsable</strong></label><br>
+        <?php jw_select_comision((string) get_post_meta($post->ID, 'jw_comision', true)); ?>
+        <span class="description">La ficha muestra la comisión y la página de la comisión lista el proyecto.</span>
+    </p>
     <?php
 }
 
@@ -181,7 +189,7 @@ function jw_guardar_proyecto(int $id): void {
     if (!jw_guardar_caja($id, 'jw_proyecto_guardar', 'jw_proyecto_nonce')) {
         return;
     }
-    foreach (['jw_estado', 'jw_avance', 'jw_inicio', 'jw_fin', 'jw_presupuesto_total', 'jw_presupuesto_ejecutado', 'jw_ubicacion', 'jw_participantes', 'jw_aliados'] as $clave) {
+    foreach (['jw_estado', 'jw_avance', 'jw_inicio', 'jw_fin', 'jw_presupuesto_total', 'jw_presupuesto_ejecutado', 'jw_ubicacion', 'jw_participantes', 'jw_aliados', 'jw_comision'] as $clave) {
         $valor = isset($_POST[$clave]) ? wp_unslash($_POST[$clave]) : '';
         update_post_meta($id, $clave, $valor);
     }

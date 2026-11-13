@@ -136,9 +136,12 @@ function jw_proyectos_publicos(): array {
         'orderby' => ['menu_order' => 'ASC', 'title' => 'ASC'],
     ]);
 
-    return array_map(static function (WP_Post $post): array {
+    $mapa = jw_comisiones_mapa();
+
+    return array_map(static function (WP_Post $post) use ($mapa): array {
         $meta = static fn(string $clave): mixed => get_post_meta($post->ID, $clave, true);
         $categorias = wp_get_object_terms($post->ID, 'jw_proyecto_categoria');
+        $comision = $meta('jw_comision');
         return [
             'slug' => $post->post_name,
             'titulo' => jw_plano($post->post_title),
@@ -158,6 +161,9 @@ function jw_proyectos_publicos(): array {
                 static fn(WP_Term $t): array => ['slug' => $t->slug, 'nombre' => jw_plano($t->name)],
                 $categorias
             ),
+            'comision' => is_string($comision) && isset($mapa[$comision])
+                ? ['slug' => $comision, 'nombre' => $mapa[$comision]['corto']]
+                : null,
             'imagen' => jw_foto($post->ID),
             'contenido' => apply_filters('the_content', $post->post_content),
         ];

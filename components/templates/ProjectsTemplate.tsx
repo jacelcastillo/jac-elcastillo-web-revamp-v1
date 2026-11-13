@@ -1,7 +1,7 @@
 import { Container } from "@/components/atoms/Container";
 import { CategoryFilter } from "@/components/molecules/CategoryFilter";
 import { Hero } from "@/components/organisms/Hero";
-import { ProjectCard } from "@/components/organisms/ProjectCard";
+import { ProjectGrid } from "@/components/organisms/ProjectGrid";
 import type { Category, Project } from "@/lib/types";
 
 const filterLabel = "mb-1 shrink-0 text-sm font-semibold text-muted sm:mb-0 sm:w-20 sm:pt-2";
@@ -65,13 +65,7 @@ export function ProjectsTemplate({
             {projects.length === 0 ? (
               <p className="text-muted">No hay proyectos con estos filtros.</p>
             ) : (
-              <ul className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-                {projects.map((project) => (
-                  <li key={project.slug} className="flex">
-                    <ProjectCard project={project} />
-                  </li>
-                ))}
-              </ul>
+              <ProjectGrid projects={projects} />
             )}
           </>
         )}

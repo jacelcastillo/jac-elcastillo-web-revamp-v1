@@ -20,6 +20,7 @@ function toProject(raw: unknown, statuses: Category[]): Project[] {
   if (!title || !status) return [];
   const budget = isRecord(raw.presupuesto) ? raw.presupuesto : {};
   const image = toPhoto(raw.imagen);
+  const [commission] = toCategory(raw.comision, "slug", "nombre");
   return [
     {
       slug: raw.slug,
@@ -36,6 +37,7 @@ function toProject(raw: unknown, statuses: Category[]): Project[] {
       categories: Array.isArray(raw.categorias)
         ? raw.categorias.flatMap((c) => toCategory(c, "slug", "nombre"))
         : [],
+      ...(commission && { commission }),
       ...(image && { image }),
       html: optimizeImages(clean(str(raw.contenido), title)),
     },
@@ -55,11 +57,12 @@ export function toProjectsPage(json: unknown): ProjectsPage {
 
 export const filterProjects = (
   projects: Project[],
-  { categoria, estado }: { categoria?: string; estado?: string },
+  { categoria, estado, comision }: { categoria?: string; estado?: string; comision?: string },
 ) =>
   projects.filter(
     (p) =>
       (!estado || p.status.slug === estado) &&
+      (!comision || p.commission?.slug === comision) &&
       (!categoria || p.categories.some((c) => c.slug === categoria)),
   );
 

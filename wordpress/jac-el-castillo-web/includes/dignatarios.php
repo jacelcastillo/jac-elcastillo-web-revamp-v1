@@ -137,7 +137,6 @@ function jw_pintar_caja_dignatario(WP_Post $post): void {
     $cargo = (string) get_post_meta($post->ID, 'jw_cargo', true);
     $comision = (string) get_post_meta($post->ID, 'jw_comision', true);
     $situacion = jw_enum(get_post_meta($post->ID, 'jw_situacion', true), array_keys(JW_SITUACIONES), 'eleccion');
-    $mapa = jw_comisiones_mapa();
     ?>
     <p class="description">El título es el nombre completo. La foto es la imagen destacada: súbela solo con autorización de la persona; sin foto se muestra el logo de la Junta. Para que el período se vea en el sitio nuevo, debe existir una página hija de Nuestra historia con el período como slug. Orden solo desempata a personas con el mismo cargo.</p>
     <p>
@@ -165,22 +164,7 @@ function jw_pintar_caja_dignatario(WP_Post $post): void {
     </p>
     <p>
         <label for="jw_comision"><strong>Comisión u órgano</strong></label><br>
-        <select id="jw_comision" name="jw_comision">
-            <option value="">Ninguna</option>
-            <?php foreach (JW_TIPOS as $tipo => $seccion) : ?>
-                <?php $de_seccion = array_filter($mapa, static fn(array $c): bool => $c['tipo'] === $tipo); ?>
-                <?php if ($de_seccion) : ?>
-                    <optgroup label="<?php echo esc_attr($seccion); ?>">
-                        <?php foreach ($de_seccion as $slug => $datos) : ?>
-                            <option value="<?php echo esc_attr($slug); ?>" <?php selected($comision, $slug); ?>><?php echo esc_html($datos['corto']); ?></option>
-                        <?php endforeach; ?>
-                    </optgroup>
-                <?php endif; ?>
-            <?php endforeach; ?>
-            <?php if ($comision !== '' && !isset($mapa[$comision])) : ?>
-                <option value="<?php echo esc_attr($comision); ?>" selected><?php echo esc_html($comision); ?> (no publicada)</option>
-            <?php endif; ?>
-        </select>
+        <?php jw_select_comision($comision); ?>
         <span class="description">Enlaza a la persona con su comisión u órgano para que salga en la ficha.</span>
     </p>
     <p>

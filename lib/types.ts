@@ -37,6 +37,7 @@ export type Project = {
   participants: number;
   partners: string;
   categories: Category[];
+  commission?: Category;
   image?: Img;
   html: SafeHtml;
 };

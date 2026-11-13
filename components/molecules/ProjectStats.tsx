@@ -1,5 +1,6 @@
 import { Icon } from "@/components/atoms/Icon";
 import { ProgressBar } from "@/components/atoms/ProgressBar";
+import { Link } from "@/components/atoms/Link";
 import { Tag } from "@/components/atoms/Tag";
 import { STATUS_TONES, TBD, formatCOP, participantsText, periodText } from "@/lib/projects";
 import type { Project } from "@/lib/types";
@@ -7,7 +8,7 @@ import type { Project } from "@/lib/types";
 type ProjectStatsProps = { project: Project; withTags?: boolean };
 
 export function ProjectStats({ project, withTags = false }: ProjectStatsProps) {
-  const { status, categories, progress, start, end, budget, partners, location, participants } =
+  const { status, categories, commission, progress, start, end, budget, partners, location, participants } =
     project;
   const funded = budget.total > 0;
   const rows = [
@@ -24,6 +25,14 @@ export function ProjectStats({ project, withTags = false }: ProjectStatsProps) {
             <Tag key={c.slug}>{c.name}</Tag>
           ))}
         </div>
+      )}
+      {withTags && commission && (
+        <p className="text-sm text-muted">
+          Responsable:{" "}
+          <Link href={`/comisiones/${commission.slug}/`} className="font-semibold text-brand underline underline-offset-4">
+            {commission.name}
+          </Link>
+        </p>
       )}
       <ProgressBar value={progress} />
       <div className="flex flex-col gap-2 rounded-xl border border-line bg-paper p-4 text-sm">

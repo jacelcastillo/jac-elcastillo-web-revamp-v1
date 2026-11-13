@@ -218,6 +218,7 @@ $parque = jw_prueba_proyecto('Proyecto de prueba Parque', ['Obras de prueba'], [
     'jw_ubicacion' => 'Vereda de prueba',
     'jw_participantes' => 45,
     'jw_aliados' => 'Aliado de prueba Uno, Aliado de prueba Dos',
+    'jw_comision' => 'comision-de-prueba-ordinaria',
 ]);
 jw_prueba_proyecto('Proyecto de prueba Huerta', ['Ambiente de prueba'], [
     'jw_estado' => 'planificacion',
@@ -226,6 +227,7 @@ jw_prueba_proyecto('Proyecto de prueba Huerta', ['Ambiente de prueba'], [
     'jw_ubicacion' => 'Salón comunal de prueba',
     'jw_participantes' => 1,
     'jw_aliados' => 'Aliado de prueba Tres',
+    'jw_comision' => 'no-existe',
 ], ['menu_order' => 1]);
 jw_prueba_proyecto('Proyecto de prueba Cancha', ['Obras de prueba', 'Ambiente de prueba'], [
     'jw_estado' => 'completado',
@@ -234,6 +236,7 @@ jw_prueba_proyecto('Proyecto de prueba Cancha', ['Obras de prueba', 'Ambiente de
     'jw_fin' => '2023-09-30',
     'jw_presupuesto_total' => 45000000,
     'jw_presupuesto_ejecutado' => 45000000,
+    'jw_comision' => 'comision-de-prueba-borrador',
 ], ['menu_order' => 2]);
 jw_prueba_proyecto('Proyecto de prueba Borrador', ['Obras de prueba'], ['jw_estado' => 'suspendido'], ['post_status' => 'draft']);
 

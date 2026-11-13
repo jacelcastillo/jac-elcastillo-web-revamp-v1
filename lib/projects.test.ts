@@ -48,6 +48,15 @@ test("valid input maps to statuses and projects", () => {
   assert.match(p.html, /<p>Texto de prueba<\/p>/);
 });
 
+test("comision maps to a category and is optional", () => {
+  const commission = { slug: "cultura", nombre: "Cultura" };
+  assert.deepEqual(page(project({ comision: commission })).projects[0].commission, { slug: "cultura", name: "Cultura" });
+  for (const comision of [null, "cultura", 3, {}, { slug: "No Valido", nombre: "X" }, { slug: "cultura", nombre: "" }]) {
+    assert.equal(page(project({ comision })).projects[0].commission, undefined);
+  }
+  assert.equal(page(project()).projects[0].commission, undefined);
+});
+
 test("garbage input gives empty pages", () => {
   for (const input of [null, undefined, "x", 3, [], {}, { estados: 1, proyectos: 1 }]) {
     assert.deepEqual(toProjectsPage(input), { statuses: [], projects: [] });
@@ -97,6 +106,18 @@ test("filterProjects combines estado and categoria", () => {
   assert.deepEqual(slugs({ estado: "progreso" }), ["uno", "tres"]);
   assert.deepEqual(slugs({ categoria: "ambiente" }), ["dos"]);
   assert.deepEqual(slugs({ categoria: "obras", estado: "planificacion" }), []);
+});
+
+test("filterProjects filters by comision", () => {
+  const { projects } = page(
+    project({ slug: "uno", comision: { slug: "cultura", nombre: "Cultura" } }),
+    project({ slug: "dos", comision: { slug: "empresarial", nombre: "Empresarial" } }),
+    project({ slug: "tres" }),
+  );
+  const slugs = (comision: string) => filterProjects(projects, { comision }).map((p) => p.slug);
+  assert.deepEqual(slugs("cultura"), ["uno"]);
+  assert.deepEqual(slugs("empresarial"), ["dos"]);
+  assert.deepEqual(slugs("otra"), []);
 });
 
 test("categoriesOf lists each category once, sorted in Spanish", () => {
