@@ -49,7 +49,7 @@ export function HomeTemplate({ latest, about, alert }: HomeTemplateProps) {
           eyebrow="Transparencia"
           title="Rendición de cuentas"
           text="Consulta los informes de gestión y la rendición de cuentas de la Junta."
-          cta={{ label: "Ver informes", href: "/rendicion-de-cuentas/" }}
+          cta={{ label: "Ver informes", href: "/transparencia/" }}
         />
       </div>
     </>

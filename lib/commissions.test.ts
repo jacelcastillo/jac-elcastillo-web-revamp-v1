@@ -105,11 +105,11 @@ test("commissionSections keeps the order of tipos and skips empty sections", () 
   assert.deepEqual(commissionSections(page()), []);
 });
 
-test("legacy paths end in a slash and point to commission pages", () => {
+test("legacy paths end in a slash and point to commission pages or transparency", () => {
   for (const [from, to] of Object.entries(LEGACY_PATHS)) {
     assert.match(from, /^\/[a-z0-9-]+\/$/);
-    assert.match(to, /^\/comisiones\/([a-z0-9-]+\/)?$/);
+    assert.match(to, /^(\/comisiones\/([a-z0-9-]+\/)?|\/transparencia\/)$/);
     assert.notEqual(from, to);
   }
-  assert.equal(Object.keys(LEGACY_PATHS).length, 10);
+  assert.equal(Object.keys(LEGACY_PATHS).length, 12);
 });

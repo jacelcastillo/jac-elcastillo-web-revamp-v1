@@ -53,6 +53,20 @@ export type Commission = {
   html: SafeHtml;
 };
 export type CommissionsPage = { types: Category[]; statuses: Category[]; commissions: Commission[] };
+export type PublicDocument = {
+  id: number;
+  title: string;
+  type: Category;
+  date: string;
+  url: string;
+  format: string;
+  size: number;
+};
+export type BudgetKind = "ingreso" | "egreso";
+export type BudgetItem = { kind: BudgetKind; group: string; name: string; budgeted: number; executed: number };
+export type MonthTotal = { month: number; income: number; expense: number };
+export type FiscalYear = { year: number; note: string; items: BudgetItem[]; months: MonthTotal[] };
+export type TransparencyPage = { types: Category[]; documents: PublicDocument[]; years: FiscalYear[] };
 export type NavItem = { label: string; href: string };
 export type NavGroup = { label: string; items: NavItem[] };
 export type NavEntry = NavItem | NavGroup;

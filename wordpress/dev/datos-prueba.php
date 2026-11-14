@@ -155,6 +155,82 @@ function jw_prueba_comision(string $titulo, string $corto, string $tipo, string 
     return $id;
 }
 
+function jw_prueba_pdf(): int {
+    $existente = get_posts([
+        'post_type' => 'attachment',
+        'post_status' => 'inherit',
+        'meta_key' => 'jw_prueba',
+        'meta_value' => 'pdf',
+        'fields' => 'ids',
+        'posts_per_page' => 1,
+    ]);
+    if ($existente) {
+        return (int) $existente[0];
+    }
+    $pdf = "%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 200 200]>>endobj\ntrailer<</Root 1 0 R>>\n%EOF\n";
+    $subida = wp_upload_bits('documento-de-prueba.pdf', null, $pdf);
+    if ($subida['error']) {
+        WP_CLI::error($subida['error']);
+    }
+    $id = wp_insert_attachment([
+        'post_mime_type' => 'application/pdf',
+        'post_title' => 'Documento de prueba',
+        'post_status' => 'inherit',
+    ], $subida['file']);
+    update_post_meta($id, 'jw_prueba', 'pdf');
+    return $id;
+}
+
+function jw_prueba_documento(string $titulo, array $meta, array $extra = []): void {
+    $existe = get_posts([
+        'post_type' => 'jw_documento',
+        'post_status' => 'any',
+        'meta_key' => 'jw_prueba',
+        'meta_value' => $titulo,
+        'fields' => 'ids',
+        'posts_per_page' => 1,
+    ]);
+    if ($existe) {
+        return;
+    }
+    $id = wp_insert_post($extra + [
+        'post_type' => 'jw_documento',
+        'post_status' => 'publish',
+        'post_title' => $titulo,
+        'meta_input' => ['jw_prueba' => $titulo] + $meta,
+    ], true);
+    if (is_wp_error($id)) {
+        WP_CLI::error($id->get_error_message());
+    }
+}
+
+function jw_prueba_vigencia(string $clave, int $anio, array $meta, array $extra = [], string $modificada = ''): void {
+    $existe = get_posts([
+        'post_type' => 'jw_vigencia',
+        'post_status' => 'any',
+        'meta_key' => 'jw_prueba',
+        'meta_value' => $clave,
+        'fields' => 'ids',
+        'posts_per_page' => 1,
+    ]);
+    if ($existe) {
+        return;
+    }
+    $id = wp_insert_post($extra + [
+        'post_type' => 'jw_vigencia',
+        'post_status' => 'publish',
+        'meta_input' => ['jw_prueba' => $clave, 'jw_anio' => $anio] + $meta,
+    ], true);
+    if (is_wp_error($id)) {
+        WP_CLI::error($id->get_error_message());
+    }
+    if ($modificada !== '') {
+        global $wpdb;
+        $wpdb->update($wpdb->posts, ['post_modified' => $modificada, 'post_modified_gmt' => $modificada], ['ID' => $id]);
+        clean_post_cache($id);
+    }
+}
+
 $historia = jw_prueba_pagina(
     'historia',
     'Nuestra historia',
@@ -279,5 +355,32 @@ if (!get_page_by_path('rendicion-de-prueba-de-la-comision', OBJECT, 'post')) {
     }
     wp_set_post_categories($rendicion, [get_term_by('slug', 'comision-de-prueba-ordinaria', 'category')->term_id]);
 }
+
+$pdf = jw_prueba_pdf();
+jw_prueba_documento('Informe de prueba', ['jw_tipo' => 'informe', 'jw_fecha' => '2025-05-10', 'jw_archivo' => $pdf]);
+jw_prueba_documento('Acta de prueba', ['jw_tipo' => 'acta', 'jw_archivo' => $pdf]);
+jw_prueba_documento('Documento de prueba Borrador', ['jw_tipo' => 'plan', 'jw_archivo' => $pdf], ['post_status' => 'draft']);
+jw_prueba_documento('Documento de prueba Sin archivo', ['jw_tipo' => 'otro']);
+
+$fila = static fn(string ...$celdas): string => implode("\t", $celdas);
+jw_prueba_vigencia('2025-vieja', 2025, ['jw_presupuesto' => $fila('Ingreso', 'Ingresos', 'Rubro viejo', '1', '1')], [], '2020-01-01 00:00:00');
+jw_prueba_vigencia('2025', 2025, [
+    'jw_presupuesto' => implode("\n", [
+        $fila('Clase', 'Grupo', 'Rubro', 'Presupuestado', 'Ejecutado'),
+        $fila('Ingreso', 'Ingresos', 'Cuotas de prueba', '$ 1.234,56', '$ -'),
+        $fila('Gastos', 'Funcionamiento', 'Oficina de prueba', '600000', '80.300'),
+        $fila('Egreso', 'Operacionales', 'Rubro con error', 'abc', '0'),
+        $fila('Egreso', 'Reservas', 'Rubro en cero', '0', '0'),
+    ]),
+    'jw_meses' => implode("\n", [
+        $fila('Mes', 'Ingresos', 'Egresos'),
+        $fila('julio', '1.000', '500'),
+        $fila('8', '2000', '1000'),
+        $fila('13', '5', '5'),
+    ]),
+    'jw_nota' => 'Nota de prueba de la vigencia 2025.',
+]);
+jw_prueba_vigencia('2026', 2026, ['jw_meses' => implode("\n", [$fila('7', '100', '50'), $fila('9', '300', '150')])]);
+jw_prueba_vigencia('2027-borrador', 2027, ['jw_nota' => 'Borrador de prueba.'], ['post_status' => 'draft']);
 
 WP_CLI::success('Datos de prueba listos.');

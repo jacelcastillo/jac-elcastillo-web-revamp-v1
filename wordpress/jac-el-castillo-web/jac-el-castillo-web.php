@@ -1,21 +1,24 @@
 <?php
 /**
  * Plugin Name: JAC El Castillo · Sitio web
- * Description: Contenido del sitio web de la JAC El Castillo que se edita en wp-admin, como los dignatarios de cada período, los proyectos y las comisiones, publicado por rutas REST de solo lectura.
- * Version: 0.7.0
+ * Description: Contenido del sitio web de la JAC El Castillo que se edita en wp-admin, como los dignatarios de cada período, los proyectos, las comisiones y la transparencia con sus documentos y vigencias de tesorería, publicado por rutas REST de solo lectura.
+ * Version: 0.8.0
  * Requires PHP: 8.1
  * Text Domain: jac-el-castillo-web
  */
 
 defined('ABSPATH') || exit;
 
-const JW_VERSION = '0.7.0';
+const JW_VERSION = '0.8.0';
 const JW_MENU = 'jac-el-castillo';
 
 require_once __DIR__ . '/includes/sanitizar.php';
 require_once __DIR__ . '/includes/dignatarios.php';
 require_once __DIR__ . '/includes/comisiones.php';
 require_once __DIR__ . '/includes/proyectos.php';
+require_once __DIR__ . '/includes/tesoreria.php';
+require_once __DIR__ . '/includes/documentos.php';
+require_once __DIR__ . '/includes/migraciones.php';
 require_once __DIR__ . '/includes/rest.php';
 
 add_action('after_setup_theme', 'jw_soportar_fotos');
@@ -32,12 +35,18 @@ add_filter('parent_file', 'jw_resaltar_menu');
 function jw_agregar_menu(): void {
     $nombre = get_bloginfo('name');
     $nombre = $nombre !== '' ? $nombre : 'JAC El Castillo';
-    add_menu_page($nombre, $nombre, 'edit_posts', JW_MENU, '', 'dashicons-groups', 26);
+    // El rol de tesorería no tiene edit_posts: sin su permiso, core le niega las pantallas de lista.
+    add_menu_page($nombre, $nombre, current_user_can('edit_posts') ? 'edit_posts' : 'edit_jw_tesorerias', JW_MENU, '', 'dashicons-groups', 26);
 }
 
 function jw_ordenar_menu(): void {
     remove_submenu_page(JW_MENU, JW_MENU);
     add_submenu_page(JW_MENU, 'Categorías de proyecto', 'Categorías de proyecto', 'manage_categories', 'edit-tags.php?taxonomy=jw_proyecto_categoria&amp;post_type=jw_proyecto');
+    // Sin esta página oculta, core da 403 en post-new.php a quien no tiene edit_posts.
+    foreach (['jw_vigencia', 'jw_documento'] as $tipo) {
+        $objeto = get_post_type_object($tipo);
+        add_submenu_page('options.php', $objeto->labels->add_new_item, $objeto->labels->add_new_item, $objeto->cap->create_posts, "post-new.php?post_type=$tipo");
+    }
 }
 
 function jw_resaltar_menu(string $parent_file): string {

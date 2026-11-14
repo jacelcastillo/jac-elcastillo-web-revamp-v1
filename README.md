@@ -20,6 +20,7 @@ Nueva interfaz del sitio de la Junta de Acción Comunal Ciudad Campestre El Cast
     ├─ /wp-json/jac-web/v1/dignatarios   dignatarios de cada período (plugin propio)
     ├─ /wp-json/jac-web/v1/proyectos     proyectos con estado y categorías (plugin propio)
     ├─ /wp-json/jac-web/v1/comisiones    comisiones y órganos de la Junta (plugin propio)
+    ├─ /wp-json/jac-web/v1/transparencia documentos y vigencias de tesorería (plugin propio)
     └─ /wp-content/uploads/...     imágenes (pasan por /_next/image)
 ```
 
@@ -81,7 +82,7 @@ Los archivos `.env*` están en `.gitignore`. En Vercel la variable se define en 
 | `pnpm exec tsc --noEmit` | Chequeo de tipos |
 | `pnpm wp:up` | Levanta el WordPress local del plugin (http://localhost:8081) |
 | `pnpm wp:setup` | Instala WordPress local, activa el plugin y carga datos de prueba ficticios (se puede repetir) |
-| `pnpm wp:check` | Comprueba las rutas de dignatarios, proyectos y comisiones contra el WordPress local. Con `node scripts/check-wp.mjs <url> --prod` solo lee |
+| `pnpm wp:check` | Comprueba las rutas de dignatarios, proyectos, comisiones y transparencia contra el WordPress local, incluido el rol de tesorería. Con `node scripts/check-wp.mjs <url> --prod` solo lee |
 | `pnpm wp:zip` | Genera `dist/jac-el-castillo-web.zip` |
 
 ## Estructura
@@ -95,6 +96,7 @@ app/                    rutas (App Router)
   comisiones/[slug]/    ficha de la comisión con su rendición de cuentas
   proyectos/page.tsx    proyectos con filtros por categoría y estado
   proyectos/[slug]/     ficha del proyecto con sus avances
+  transparencia/page.tsx cifras, presupuesto por vigencia, gráfico mensual y documentos, con filtros por año y tipo
   contacto/page.tsx     contacto (estática)
   [...path]/page.tsx    cualquier entrada o página de WordPress, incluidas las páginas hijas
   robots.ts             Disallow: /
@@ -112,11 +114,13 @@ lib/
   board.ts              toBoardTerms(), groupMembers() y commissionTerms(): validan y agrupan el JSON de dignatarios
   html.ts               clean(), text(), isSlug(), truncate()
   images.ts             optimizeImages(): imágenes del contenido por /_next/image
-  listing.ts            validación de ?categoria, ?estado y ?page
+  listing.ts            validación de ?categoria, ?estado, ?page, ?anio y ?tipo
   projects.ts           toProjectsPage(), filterProjects(), categoriesOf(), periodText(), participantsText(), formatCOP()
   cms/projects.ts       getProjectsPage(): proyectos y estados
   commissions.ts        toCommissionsPage(), commissionSections(), COMMISSION_TONES
   cms/commissions.ts    getCommissionsPage(): comisiones, tipos y estados
+  transparency.ts       toTransparencyPage(), executed(), budgetGroups(), formatSize(), filterDocuments()
+  cms/transparency.ts   getTransparencyPage(): documentos, tipos y vigencias
   redirects.ts          LEGACY_PATHS: rutas viejas de WordPress y su destino (next.config.ts y check-urls)
   paths.ts              pathOf(), pickByPath() y sortChildren(): rutas anidadas de páginas hijas
   site.ts               datos fijos: nombre, contacto, menú
@@ -139,6 +143,8 @@ wordpress/              plugin jac-el-castillo-web, WordPress local y datos de p
 | `/comisiones/<slug>/` | Ficha de la comisión: estado, fundamento, funciones, proyectos a su cargo (debajo de los integrantes) y rendición de cuentas (hasta 6 entradas de la categoría con el mismo slug) | ISR |
 | `/proyectos/` | Proyectos con filtros `?categoria=<slug>` y `?estado=<valor>`. Un valor que no existe da 404 | En cada visita (`force-dynamic`), con datos en caché |
 | `/proyectos/<slug>/` | Ficha del proyecto, con sus avances (hasta 6 entradas de la categoría con el mismo slug) | ISR |
+| `/transparencia/` | Hero con las cifras de la vigencia, chips de vigencia (`?anio=<año>`, por defecto la más reciente), presupuesto agrupado, gráfico mensual con su tabla, documentos con chips por tipo (`?tipo=<valor>`) y proyectos en curso. Un valor que no existe da 404 | En cada visita (`force-dynamic`), con datos en caché |
+| `/rendicion-de-cuentas/`, `/informe-de-gestion-2023-2024/` | Redirigen (308) a `/transparencia/`. WordPress no cambia | `next.config.ts` |
 | `/contacto/` | Datos de contacto de `lib/site.ts` | Estática, en el build |
 | `/<ruta>/` | Cualquier entrada o página de WordPress en la ruta de su enlace (`link`), incluidas las páginas hijas (`/historia/2022-2026/`). Una página con páginas hijas las lista como tarjetas bajo su contenido. Una página cuyo slug es un período (`AAAA-AAAA`) muestra además sus Dignatarios, con un título por sección. Entrar a una página hija por su ruta plana redirige (308) a la anidada | ISR: se genera en la primera visita y se renueva cada 5 minutos |
 | `/robots.txt` | `Disallow: /` mientras sea prototipo | Estática |
@@ -224,7 +230,7 @@ Después, `optimizeImages()` en `lib/images.ts` reescribe las `<img>` que vienen
 
 ## El plugin de WordPress
 
-`wordpress/jac-el-castillo-web/` (en wp-admin: "JAC El Castillo · Sitio web") guarda el contenido del sitio que necesita campos propios, hoy los dignatarios de cada período, los proyectos y las comisiones, y lo publica por rutas REST de solo lectura. Es un plugin aparte del de gestión del riesgo porque ese es del micrositio de emergencias y tiene datos vivos.
+`wordpress/jac-el-castillo-web/` (en wp-admin: "JAC El Castillo · Sitio web") guarda el contenido del sitio que necesita campos propios, hoy los dignatarios de cada período, los proyectos, las comisiones, y los documentos y las vigencias de tesorería, y lo publica por rutas REST de solo lectura. Es un plugin aparte del de gestión del riesgo porque ese es del micrositio de emergencias y tiene datos vivos.
 
 ### Instalarlo
 
@@ -344,16 +350,69 @@ Los dignatarios (2026-2030 y los coordinadores de 2022-2026) se cargan con `carg
 - El artículo 52 lista la Comisión de Derechos Humanos entre las comisiones posibles, pero ningún artículo define sus funciones. Por eso su ficha lo dice y queda como "Pendiente de verificar".
 - El mismo artículo dice que el número, nombre y funciones de las comisiones los determina la asamblea general. Las comisiones que no están en los estatutos van en "Nuevas iniciativas", como Gestión del Riesgo.
 
+### Transparencia
+
+`/transparencia/` junta dos tipos de registro del plugin, que la Junta carga en wp-admin con el rol **Tesorería y documentos** (ver [Roles](#roles-y-migraciones)). WordPress no reemplaza la contabilidad ni el Excel de la tesorera: el sitio publica los totales y rubros aprobados, y el detalle queda en los PDF.
+
+**Documentos** (`jw_documento`, menú Documentos): título, tipo (Informe de gestión, Financiero, Acta, Resolución, Plan u Otro), fecha opcional y el archivo, que se sube con el selector de la caja del Documento. Sin archivo, el documento no se publica. Las actas y resoluciones se publican solo cuando están aprobadas y revisadas, sin cédulas, teléfonos ni correos personales.
+
+**Vigencias** (`jw_vigencia`, menú Vigencias): un registro por año, de enero a diciembre, con título automático «Vigencia AAAA». Si el año ya existe, se edita esa vigencia: con dos del mismo año gana la última modificada. Tiene 3 campos que se pegan desde Excel, con las celdas copiadas tal cual:
+
+| Campo | Columnas | Reglas |
+|---|---|---|
+| Presupuesto | Clase, Grupo, Rubro, Presupuestado, Ejecutado | Clase acepta Ingreso, Ingresos, Egreso, Egresos, Gasto o Gastos. Los valores aceptan «$», puntos y espacios, y los decimales se ignoran. La fila de títulos es opcional. Una celda vacía vale 0, y en el sitio no salen las filas con presupuestado y ejecutado en 0. |
+| Meses | Mes, Ingresos, Egresos | Mes es el número (7) o el nombre (julio o jul), nunca una fecha, porque Excel la convierte. El año es el de la vigencia. Un mes repetido conserva su última fila. |
+| Nota | Texto de hasta 300 caracteres | La fuente de las cifras o una aclaración. Sale debajo del presupuesto. |
+
+Se guarda el texto pegado tal cual y se interpreta al mostrarlo. Al guardar, la caja muestra lo que entendió: la tabla con el total de cada clase, para compararla con el Excel, y la lista de filas que no pudo leer con su número (por ejemplo «Fila 4: Presupuestado no es un número»). Esas filas no se publican.
+
+El modelo `modelo-presupuesto.xlsx` va dentro del plugin (`assets/`) y la caja de la vigencia lo enlaza. Tiene la hoja Presupuesto con los 20 rubros de la estructura 2024 y la hoja Meses, sin valores ni datos de personas.
+
+**Protocolo de carga**
+
+| Cuándo | Quién | Qué hace en wp-admin |
+|---|---|---|
+| Al cerrar cada mes | Tesorería | Abre la vigencia del año y, en Meses, agrega la fila del mes con las filas TOTAL INGRESOS y TOTAL EGRESOS del Excel (o pega la tabla completa). |
+| Cuando la asamblea aprueba el presupuesto | Tesorería | Crea la vigencia y pega el Presupuesto desde el modelo (estatutos, art. 140). |
+| Con cada informe aprobado por la Junta | Tesorería | Pega de nuevo el Presupuesto con el Ejecutado al día, y sube el PDF del informe como **Documento** de tipo Financiero. |
+| Cuando se aprueba un acta o una resolución | Secretaría | Crea un **Documento** de tipo Acta o Resolución con el PDF revisado, sin cédulas, teléfonos ni correos personales. |
+
+**Qué se ve.** Las 3 cifras del hero son los ingresos ejecutados, los egresos ejecutados y los proyectos en curso. El ejecutado sale de los meses si la vigencia los tiene, con la etiqueta de los meses que cubre (por ejemplo «2026, jul a sep»). Sin meses, es la suma del ejecutado de los rubros. Sin ninguno de los dos, dice «Sin datos de ejecución». El presupuesto muestra una tarjeta por clase y los rubros agrupados con su subtotal, y sin rubros dice que el presupuesto aún no está aprobado por la asamblea general. Con presupuestado 0 solo sale lo ejecutado, sin barra. Las barras del gráfico mensual son CSS dibujado en el servidor y llevan `aria-hidden`: la tabla de Mes, Ingresos y Egresos es el contenido accesible.
+
+`GET /wp-json/jac-web/v1/transparencia`: pública, de solo lectura y con `Cache-Control: public, max-age=300`.
+
+```json
+{ "tipos": [ { "valor": "informe", "nombre": "Informe de gestión" } ],
+  "documentos": [ { "id": 1, "titulo": "...", "tipo": "financiero", "fecha": "2024-06-09",
+                    "url": "https://.../wp-content/uploads/....pdf", "formato": "PDF", "tamano": 512000 } ],
+  "vigencias": [ { "anio": 2023, "nota": "...",
+                   "rubros": [ { "clase": "ingreso", "grupo": "Ingresos", "nombre": "Cuotas por conjuntos",
+                                 "presupuestado": 32460000, "ejecutado": 6535800 } ],
+                   "meses": [ { "mes": 7, "ingresos": 1340200, "egresos": 64974 } ] } ] }
+```
+
+Solo entra lo publicado y sin contraseña. Un documento sin adjunto válido no sale, y una vigencia sin rubros, sin meses y sin nota tampoco. Los documentos van por fecha descendente (sin fecha al final, por título), las vigencias de la más nueva a la más vieja, los rubros en el orden en que se pegaron y los meses del 1 al 12. `tamano` es 0 si no se conoce. La app solo acepta una `url` que empiece por `/wp-content/uploads/` del dominio de WordPress.
+
+#### Roles y migraciones
+
+El plugin crea el rol **Tesorería y documentos** (`jw_tesoreria`) con `read`, `upload_files` y los permisos de `JW_CAPS_TESORERIA`, que cubren solo Documentos y Vigencias. Administrador y Editor reciben los mismos permisos. Quien tiene solo ese rol no puede crear entradas ni editar páginas, y en wp-admin ve únicamente Documentos y Vigencias, además de Medios y Perfil.
+
+Subir el zip con «Reemplazar el actual» no corre la activación del plugin. Por eso `includes/migraciones.php` compara en cada carga la opción `jw_version` con `JW_VERSION` y corre las migraciones que falten. Cada migración nueva se agrega con su versión y debe poder repetirse sin duplicar nada. Para crear a la tesorera o a la Secretaría: Usuarios → Añadir nuevo, con el rol Tesorería y documentos.
+
+#### Carga del histórico
+
+`cargas/cargar-transparencia.js` (fuera de git, como los demás) carga los 11 documentos que ya están en la biblioteca de medios y las vigencias 2022, 2023, 2024 y 2026. Flujo: pegarlo en la consola de una página de wp-admin con la sesión iniciada. Con `APLICAR = false` solo lee, comprueba que existan los tipos y los 11 archivos (si falta uno, se detiene sin crear nada) y muestra qué haría. Con `APLICAR = true` crea lo que falta y comprueba los totales publicados. Es idempotente: un documento se reconoce por su adjunto y una vigencia por su año.
+
 ### Probarlo en local
 
 ```bash
 pnpm wp:up       # WordPress en http://localhost:8081 (admin / admin-local)
 pnpm wp:setup    # instala, activa el plugin y carga datos de prueba ficticios
-pnpm wp:check    # verifica la ruta y los casos borde
-pnpm wp:zip      # genera dist/jac-el-castillo-web.zip
+pnpm wp:check    # verifica las rutas y los casos borde
+pnpm wp:zip      # genera dist/jac-el-castillo-web.zip, con el modelo de Excel
 ```
 
-Para ver la app contra ese WordPress: `pnpm build` y `WP_URL=http://localhost:8081 pnpm start`. En local las fotos vienen de `localhost:8081`, que la app no admite como origen de imágenes, así que se ve la marca 2x2. La foto real se comprueba en producción.
+Para ver la app contra ese WordPress: `pnpm build` y `WP_URL=http://localhost:8081 pnpm start`. En local las fotos y los archivos vienen de `localhost:8081`, que la app no admite como origen (solo `/wp-content/uploads/` del dominio de producción), así que se ve la marca 2x2 y la lista de documentos sale vacía. Las fotos y los documentos reales se comprueban en producción.
 
 ### La ruta
 

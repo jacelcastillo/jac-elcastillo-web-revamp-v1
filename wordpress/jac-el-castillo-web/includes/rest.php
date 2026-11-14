@@ -19,6 +19,11 @@ function jw_registrar_ruta(): void {
         'callback' => 'jw_comisiones',
         'permission_callback' => '__return_true',
     ]);
+    register_rest_route('jac-web/v1', '/transparencia', [
+        'methods' => 'GET',
+        'callback' => 'jw_transparencia',
+        'permission_callback' => '__return_true',
+    ]);
 }
 
 function jw_dignatarios(): WP_REST_Response {
@@ -46,6 +51,16 @@ function jw_comisiones(): WP_REST_Response {
         'tipos' => jw_opciones(JW_TIPOS),
         'estados' => jw_opciones(JW_ESTADOS_COMISION),
         'comisiones' => jw_comisiones_publicas(),
+    ]);
+    $respuesta->header('Cache-Control', 'public, max-age=300');
+    return $respuesta;
+}
+
+function jw_transparencia(): WP_REST_Response {
+    $respuesta = new WP_REST_Response([
+        'tipos' => jw_opciones(JW_TIPOS_DOCUMENTO),
+        'documentos' => jw_documentos_publicos(),
+        'vigencias' => jw_vigencias_publicas(),
     ]);
     $respuesta->header('Cache-Control', 'public, max-age=300');
     return $respuesta;
@@ -193,4 +208,74 @@ function jw_comisiones_publicas(): array {
             'contenido' => apply_filters('the_content', $post->post_content),
         ];
     }, $posts);
+}
+
+function jw_documentos_publicos(): array {
+    $posts = get_posts([
+        'post_type' => 'jw_documento',
+        'post_status' => 'publish',
+        'has_password' => false,
+        'posts_per_page' => -1,
+        'no_found_rows' => true,
+    ]);
+
+    $documentos = [];
+    foreach ($posts as $post) {
+        $adjunto = (int) get_post_meta($post->ID, 'jw_archivo', true);
+        $url = $adjunto > 0 && get_post_type($adjunto) === 'attachment' ? wp_get_attachment_url($adjunto) : false;
+        if (!$url) {
+            continue;
+        }
+        $ruta = get_attached_file($adjunto);
+        $documentos[] = [
+            'id' => $post->ID,
+            'titulo' => jw_plano($post->post_title),
+            'tipo' => jw_enum(get_post_meta($post->ID, 'jw_tipo', true), array_keys(JW_TIPOS_DOCUMENTO), 'otro'),
+            'fecha' => jw_fecha(get_post_meta($post->ID, 'jw_fecha', true)),
+            'url' => $url,
+            'formato' => strtoupper(pathinfo((string) wp_parse_url($url, PHP_URL_PATH), PATHINFO_EXTENSION)),
+            'tamano' => $ruta && is_file($ruta) ? (int) filesize($ruta) : 0,
+        ];
+    }
+
+    usort($documentos, static function (array $a, array $b): int {
+        if (($a['fecha'] === '') !== ($b['fecha'] === '')) {
+            return $a['fecha'] === '' ? 1 : -1;
+        }
+        return [$b['fecha'], $a['titulo']] <=> [$a['fecha'], $b['titulo']];
+    });
+    return $documentos;
+}
+
+function jw_vigencias_publicas(): array {
+    $posts = get_posts([
+        'post_type' => 'jw_vigencia',
+        'post_status' => 'publish',
+        'has_password' => false,
+        'posts_per_page' => -1,
+        'no_found_rows' => true,
+        'orderby' => 'modified',
+        'order' => 'DESC',
+    ]);
+
+    $porAnio = [];
+    foreach ($posts as $post) {
+        $meta = static fn(string $clave): mixed => get_post_meta($post->ID, $clave, true);
+        $anio = jw_anio_vigencia($meta('jw_anio'));
+        if ($anio === 0 || isset($porAnio[$anio])) {
+            continue;
+        }
+        $porAnio[$anio] = [
+            'anio' => $anio,
+            'nota' => jw_parrafo(jw_plano($meta('jw_nota')), 300),
+            'rubros' => jw_tabla_presupuesto((string) $meta('jw_presupuesto'))['filas'],
+            'meses' => jw_tabla_meses((string) $meta('jw_meses'))['filas'],
+        ];
+    }
+
+    krsort($porAnio);
+    return array_values(array_filter(
+        $porAnio,
+        static fn(array $v): bool => $v['rubros'] !== [] || $v['meses'] !== [] || $v['nota'] !== ''
+    ));
 }

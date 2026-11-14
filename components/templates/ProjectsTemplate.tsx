@@ -53,6 +53,7 @@ export function ProjectsTemplate({
               <div className="sm:flex sm:items-start sm:gap-3">
                 <p className={filterLabel}>Categoría</p>
                 <CategoryFilter
+                  allLabel="Todas"
                   categories={categories}
                   active={activeCategory}
                   href={(categoria) => hrefFor({ categoria, estado: activeStatus })}

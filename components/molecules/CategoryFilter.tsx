@@ -18,9 +18,9 @@ export function CategoryFilter({
   active: activeSlug,
   href,
   label = "Filtrar por categoría",
-  allLabel = "Todas",
+  allLabel,
 }: CategoryFilterProps) {
-  const entries = [{ slug: undefined, name: allLabel }, ...categories];
+  const entries = allLabel ? [{ slug: undefined, name: allLabel }, ...categories] : categories;
   return (
     <nav aria-label={label}>
       <ul className="flex gap-2 overflow-x-auto pb-2">

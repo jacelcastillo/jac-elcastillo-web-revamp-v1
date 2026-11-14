@@ -53,16 +53,7 @@ export const NAV: NavEntry[] = [
   },
   { label: "Proyectos", href: "/proyectos/" },
   { label: "Noticias", href: "/noticias/" },
-  {
-    label: "Transparencia",
-    items: [
-      { label: "Rendición de cuentas", href: "/rendicion-de-cuentas/" },
-      {
-        label: "Informe de gestión 2023-2024",
-        href: "/informe-de-gestion-2023-2024/",
-      },
-    ],
-  },
+  { label: "Transparencia", href: "/transparencia/" },
   { label: "Contacto", href: "/contacto/" },
 ];
 

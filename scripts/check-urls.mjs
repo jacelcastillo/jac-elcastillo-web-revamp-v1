@@ -34,8 +34,8 @@ async function commissionPaths() {
 const wpUrls = [...new Set([...(await wpPaths("posts")), ...(await wpPaths("pages"))])].filter((p) => !(p in LEGACY_PATHS));
 
 const checks = [
-  ...["/", "/noticias/", "/comisiones/", "/proyectos/", "/contacto/", "/robots.txt", ...wpUrls, ...(await projectPaths()), ...(await commissionPaths())].map((p) => [[200], p]),
-  ...["/x%3F_fields%3Dauthor/", "/no-existe-este-slug/", "/noticias/?categoria=%3Cscript%3E", "/noticias/?page=-1", "/proyectos/no-existe/", "/proyectos/?estado=x", "/comisiones/no-existe/"].map((p) => [[404], p]),
+  ...["/", "/noticias/", "/comisiones/", "/proyectos/", "/transparencia/", "/contacto/", "/robots.txt", ...wpUrls, ...(await projectPaths()), ...(await commissionPaths())].map((p) => [[200], p]),
+  ...["/x%3F_fields%3Dauthor/", "/no-existe-este-slug/", "/noticias/?categoria=%3Cscript%3E", "/noticias/?page=-1", "/proyectos/no-existe/", "/proyectos/?estado=x", "/transparencia/?tipo=x", "/transparencia/?anio=1999", "/comisiones/no-existe/"].map((p) => [[404], p]),
   ...Object.keys(LEGACY_PATHS).map((p) => [[308], p]),
   [[400, 404], "/..%2Fusers/"],
   [[400], "/_next/image/?url=https%3A%2F%2Fevil.com%2Fx.png&w=640&q=75"],

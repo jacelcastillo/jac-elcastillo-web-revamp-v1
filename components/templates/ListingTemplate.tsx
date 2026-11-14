@@ -40,6 +40,7 @@ export function ListingTemplate({
         {categories && hrefFor && (
           <div className="mb-8">
             <CategoryFilter
+              allLabel="Todas"
               categories={categories}
               active={activeCategory}
               href={(categoria) => hrefFor({ categoria })}

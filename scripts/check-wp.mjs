@@ -232,6 +232,86 @@ const { res: crearComisionAnonimo } = await pedir('/wp-json/wp/v2/jw_comision', 
 })
 check('/wp-json/wp/v2/jw_comision anónimo: POST da 401', crearComisionAnonimo.status === 401, String(crearComisionAnonimo.status))
 
+const TIPOS_DOCUMENTO = [
+  { valor: 'informe', nombre: 'Informe de gestión' },
+  { valor: 'financiero', nombre: 'Financiero' },
+  { valor: 'acta', nombre: 'Acta' },
+  { valor: 'resolucion', nombre: 'Resolución' },
+  { valor: 'plan', nombre: 'Plan' },
+  { valor: 'otro', nombre: 'Otro' },
+]
+
+const { res: resTransparencia, texto: cuerpoTransparencia } = await pedir('/wp-json/jac-web/v1/transparencia')
+check('transparencia: status 200', resTransparencia.status === 200, String(resTransparencia.status))
+let datosTransparencia = {}
+try {
+  datosTransparencia = JSON.parse(cuerpoTransparencia)
+} catch {}
+check('transparencia: llaves de primer nivel tipos, documentos y vigencias', mismasLlaves(datosTransparencia, ['tipos', 'documentos', 'vigencias']), Object.keys(datosTransparencia).join(','))
+check('transparencia: lista de tipos exacta', JSON.stringify(datosTransparencia.tipos) === JSON.stringify(TIPOS_DOCUMENTO), JSON.stringify(datosTransparencia.tipos))
+const documentos = Array.isArray(datosTransparencia.documentos) ? datosTransparencia.documentos : []
+const vigencias = Array.isArray(datosTransparencia.vigencias) ? datosTransparencia.vigencias : []
+const prohibidasTransparencia = llavesProhibidas(datosTransparencia)
+check('transparencia: ninguna llave de autor, correo, usuario o teléfono', prohibidasTransparencia.length === 0, prohibidasTransparencia.join(','))
+check(
+  'transparencia: cada documento tiene exactamente las llaves del contrato, con tipo, fecha y url válidos',
+  documentos.every(
+    (d) =>
+      mismasLlaves(d, ['id', 'titulo', 'tipo', 'fecha', 'url', 'formato', 'tamano']) &&
+      Number.isInteger(d.id) &&
+      d.titulo !== '' &&
+      TIPOS_DOCUMENTO.some((t) => t.valor === d.tipo) &&
+      /^(\d{4}-\d{2}-\d{2})?$/.test(d.fecha) &&
+      /^https?:\/\/.+\/wp-content\/uploads\//.test(d.url) &&
+      typeof d.formato === 'string' &&
+      Number.isInteger(d.tamano) &&
+      d.tamano >= 0,
+  ),
+)
+check(
+  'transparencia: documentos por fecha descendente, sin fecha al final',
+  documentos.every((d, i) => {
+    if (i === 0) return true
+    const previa = documentos[i - 1].fecha
+    return previa === '' ? d.fecha === '' : d.fecha === '' || previa >= d.fecha
+  }),
+  documentos.map((d) => d.fecha || '-').join(','),
+)
+const entero = (n) => Number.isInteger(n) && n >= 0
+check(
+  'transparencia: cada vigencia tiene exactamente las llaves del contrato, con rubros y meses válidos',
+  vigencias.every(
+    (v) =>
+      mismasLlaves(v, ['anio', 'nota', 'rubros', 'meses']) &&
+      Number.isInteger(v.anio) &&
+      v.anio >= 2000 &&
+      v.anio <= 2100 &&
+      typeof v.nota === 'string' &&
+      v.nota.length <= 300 &&
+      (v.rubros.length > 0 || v.meses.length > 0 || v.nota !== '') &&
+      v.rubros.every(
+        (r) =>
+          mismasLlaves(r, ['clase', 'grupo', 'nombre', 'presupuestado', 'ejecutado']) &&
+          ['ingreso', 'egreso'].includes(r.clase) &&
+          r.grupo !== '' &&
+          r.nombre !== '' &&
+          entero(r.presupuestado) &&
+          entero(r.ejecutado),
+      ) &&
+      v.meses.every((m, i) => mismasLlaves(m, ['mes', 'ingresos', 'egresos']) && m.mes >= 1 && m.mes <= 12 && entero(m.ingresos) && entero(m.egresos) && (i === 0 || v.meses[i - 1].mes < m.mes)),
+  ),
+)
+check('transparencia: vigencias de la más nueva a la más vieja, sin repetir año', vigencias.every((v, i) => i === 0 || vigencias[i - 1].anio > v.anio), vigencias.map((v) => v.anio).join(','))
+
+for (const tipo of ['jw_documento', 'jw_vigencia']) {
+  const { res: crearAnonimoTransparencia } = await pedir(`/wp-json/wp/v2/${tipo}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ title: 'Anónimo', status: 'publish' }),
+  })
+  check(`/wp-json/wp/v2/${tipo} anónimo: POST da 401`, crearAnonimoTransparencia.status === 401, String(crearAnonimoTransparencia.status))
+}
+
 if (prod) {
   console.log(`${fallos ? 'FAIL' : 'OK'} producción: ${fallos} fallos`)
   process.exit(fallos ? 1 : 0)
@@ -545,6 +625,136 @@ try {
   }
   const claves = JSON.parse(wp('user', 'application-password', 'list', 'admin', '--fields=uuid,name', '--format=json').stdout || '[]')
   for (const { uuid } of claves.filter((c) => c.name === 'jw-check')) wp('user', 'application-password', 'delete', 'admin', uuid)
+}
+
+check('transparencia: Cache-Control con max-age=300', /max-age=300/.test(resTransparencia.headers.get('cache-control') ?? ''), resTransparencia.headers.get('cache-control') ?? '')
+check(
+  'transparencia: solo los documentos publicados con archivo, el que tiene fecha primero',
+  documentos.map((d) => d.titulo).join(',') === 'Informe de prueba,Acta de prueba',
+  documentos.map((d) => d.titulo).join(','),
+)
+const informe = documentos.find((d) => d.titulo === 'Informe de prueba')
+check(
+  'transparencia: el informe trae tipo, fecha, formato y tamaño',
+  informe?.tipo === 'informe' && informe.fecha === '2025-05-10' && informe.formato === 'PDF' && informe.tamano > 0 && informe.url.endsWith('.pdf'),
+  JSON.stringify(informe),
+)
+check('transparencia: el acta no tiene fecha', documentos.find((d) => d.titulo === 'Acta de prueba')?.fecha === '')
+check('transparencia: vigencias 2026 y 2025, sin el borrador de 2027', vigencias.map((v) => v.anio).join(',') === '2026,2025', vigencias.map((v) => v.anio).join(','))
+const v2025 = vigencias.find((v) => v.anio === 2025)
+check(
+  'transparencia: 2025 gana la última modificada, salta la fila de títulos y las filas con error, y lee "$ 1.234,56", "$ -" y "Gastos"',
+  JSON.stringify(v2025?.rubros) ===
+    JSON.stringify([
+      { clase: 'ingreso', grupo: 'Ingresos', nombre: 'Cuotas de prueba', presupuestado: 1234, ejecutado: 0 },
+      { clase: 'egreso', grupo: 'Funcionamiento', nombre: 'Oficina de prueba', presupuestado: 600000, ejecutado: 80300 },
+      { clase: 'egreso', grupo: 'Reservas', nombre: 'Rubro en cero', presupuestado: 0, ejecutado: 0 },
+    ]),
+  JSON.stringify(v2025?.rubros),
+)
+check(
+  'transparencia: 2025 lee los meses por nombre y por número, y el mes 13 no sale',
+  JSON.stringify(v2025?.meses) === JSON.stringify([{ mes: 7, ingresos: 1000, egresos: 500 }, { mes: 8, ingresos: 2000, egresos: 1000 }]),
+  JSON.stringify(v2025?.meses),
+)
+check('transparencia: 2025 trae su nota', v2025?.nota === 'Nota de prueba de la vigencia 2025.', v2025?.nota)
+const v2026 = vigencias.find((v) => v.anio === 2026)
+check(
+  'transparencia: 2026 solo tiene meses',
+  v2026?.rubros.length === 0 && JSON.stringify(v2026.meses) === JSON.stringify([{ mes: 7, ingresos: 100, egresos: 50 }, { mes: 9, ingresos: 300, egresos: 150 }]) && v2026.nota === '',
+  JSON.stringify(v2026),
+)
+
+const titulos = wp('post', 'list', '--post_type=jw_vigencia', '--post_status=any', '--field=post_title')
+check(
+  'el título de cada vigencia sale del año',
+  (titulos.stdout ?? '').split('\n').filter(Boolean).sort().join(',') === 'Vigencia 2025,Vigencia 2025,Vigencia 2026,Vigencia 2027',
+  titulos.stdout ?? '',
+)
+
+const rol = () =>
+  wp(
+    'eval',
+    "$r = get_role('jw_tesoreria'); $c = $r ? array_keys(array_filter($r->capabilities)) : []; sort($c); echo wp_json_encode(['version' => get_option('jw_version'), 'nombre' => wp_roles()->get_names()['jw_tesoreria'] ?? '', 'roles' => count(wp_roles()->roles), 'caps' => $c, 'admin' => get_role('administrator')->has_cap('edit_jw_tesorerias') && get_role('editor')->has_cap('publish_jw_tesorerias'), 'edit_posts' => $r ? $r->has_cap('edit_posts') : null]);",
+  )
+const leer = (r) => {
+  try {
+    return JSON.parse(r.stdout)
+  } catch {
+    return {}
+  }
+}
+const antes = leer(rol())
+check(
+  'migración: jw_version en 0.8.0 y el rol "Tesorería y documentos" con read, upload_files y los 10 permisos, sin edit_posts',
+  antes.version === '0.8.0' &&
+    antes.nombre === 'Tesorería y documentos' &&
+    antes.caps?.length === 12 &&
+    antes.caps.includes('read') &&
+    antes.caps.includes('upload_files') &&
+    antes.caps.includes('publish_jw_tesorerias') &&
+    antes.edit_posts === false,
+  JSON.stringify(antes),
+)
+check('migración: administrator y editor reciben los permisos', antes.admin === true, JSON.stringify(antes))
+const repetida = wp('eval', "delete_option('jw_version'); jw_migrar(); echo get_option('jw_version');")
+const despues = leer(rol())
+check('migración: correrla otra vez no duplica nada', repetida.stdout?.trim() === '0.8.0' && JSON.stringify(despues) === JSON.stringify(antes), JSON.stringify(despues))
+
+const usuario = wp('user', 'create', 'jw-check-tesoreria', 'jw-check-tesoreria@example.invalid', '--role=jw_tesoreria', '--porcelain')
+const usuarioId = Number(usuario.stdout?.trim())
+check('usuario temporal del rol creado', usuario.status === 0 && usuarioId > 0, usuario.stderr ?? '')
+const claveRol = wp('user', 'application-password', 'create', String(usuarioId), 'jw-check', '--porcelain')
+const contrasenaRol = claveRol.stdout?.trim()
+const paginaId = Number(wp('post', 'list', '--post_type=page', '--field=ID', '--posts_per_page=1').stdout?.trim().split('\n')[0])
+let vigenciaRolId = 0
+let documentoRolId = 0
+try {
+  const authRol = { Authorization: `Basic ${Buffer.from(`jw-check-tesoreria:${contrasenaRol}`).toString('base64')}`, 'Content-Type': 'application/json' }
+  const { res: vigenciaRol, texto: cuerpoVigenciaRol } = await pedir('/wp-json/wp/v2/jw_vigencia', {
+    method: 'POST',
+    headers: authRol,
+    body: JSON.stringify({ status: 'publish', meta: { jw_anio: 2031, jw_presupuesto: 'Ingreso\tIngresos\tCuotas REST\t1.000\t0', jw_nota: 'Nota REST' } }),
+  })
+  check('rol: POST crea la vigencia (201)', vigenciaRol.status === 201, `${vigenciaRol.status} ${cuerpoVigenciaRol.slice(0, 200)}`)
+  try {
+    vigenciaRolId = JSON.parse(cuerpoVigenciaRol).id ?? 0
+  } catch {}
+  const { res: documentoRol, texto: cuerpoDocumentoRol } = await pedir('/wp-json/wp/v2/jw_documento', {
+    method: 'POST',
+    headers: authRol,
+    body: JSON.stringify({ title: 'Documento de prueba REST', status: 'publish', meta: { jw_tipo: 'inventado', jw_fecha: '2025-02-30', jw_archivo: 999999 } }),
+  })
+  check('rol: POST crea el documento (201)', documentoRol.status === 201, `${documentoRol.status} ${cuerpoDocumentoRol.slice(0, 200)}`)
+  try {
+    documentoRolId = JSON.parse(cuerpoDocumentoRol).id ?? 0
+  } catch {}
+  const { res: entradaRol } = await pedir('/wp-json/wp/v2/posts', { method: 'POST', headers: authRol, body: JSON.stringify({ title: 'No debe crearse', status: 'publish' }) })
+  check('rol: crear una entrada da 403', entradaRol.status === 403, String(entradaRol.status))
+  const { res: paginaRol } = await pedir(`/wp-json/wp/v2/pages/${paginaId}`, { method: 'POST', headers: authRol, body: JSON.stringify({ title: 'No debe cambiar' }) })
+  check('rol: editar una página da 403', paginaRol.status === 403, String(paginaRol.status))
+
+  const { texto: cuerpoRol } = await pedir('/wp-json/jac-web/v1/transparencia')
+  let publicoRol = { vigencias: [], documentos: [] }
+  try {
+    publicoRol = JSON.parse(cuerpoRol)
+  } catch {}
+  const v2031 = publicoRol.vigencias.find((v) => v.anio === 2031)
+  check(
+    'la vigencia creada por REST sale con sus rubros y nota, y su título sale del año',
+    v2031?.rubros?.[0]?.presupuestado === 1000 && v2031.nota === 'Nota REST' && wp('post', 'get', String(vigenciaRolId), '--field=post_title').stdout?.trim() === 'Vigencia 2031',
+    JSON.stringify(v2031),
+  )
+  check(
+    'el documento creado por REST sin archivo válido no sale, y su tipo y fecha inválidos se sanean',
+    !publicoRol.documentos.some((d) => d.titulo === 'Documento de prueba REST') &&
+      wp('post', 'meta', 'get', String(documentoRolId), 'jw_tipo').stdout?.trim() === 'otro' &&
+      wp('post', 'meta', 'get', String(documentoRolId), 'jw_fecha').stdout?.trim() === '' &&
+      wp('post', 'meta', 'get', String(documentoRolId), 'jw_archivo').stdout?.trim() === '0',
+  )
+} finally {
+  for (const id of [vigenciaRolId, documentoRolId].filter(Boolean)) wp('post', 'delete', String(id), '--force')
+  if (usuarioId > 0) wp('user', 'delete', String(usuarioId), '--yes')
 }
 
 const log = spawnSync('docker', ['compose', '-f', 'wordpress/compose.yml', 'exec', '-T', 'wordpress', 'cat', 'wp-content/debug.log'], {

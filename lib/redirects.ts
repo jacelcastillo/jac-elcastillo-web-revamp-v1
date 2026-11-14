@@ -9,4 +9,6 @@ export const LEGACY_PATHS: Record<string, string> = {
   "/comision-de-cultura/": "/comisiones/cultura/",
   "/tic/": "/comisiones/comunicaciones-y-tic/",
   "/empresarial/": "/comisiones/empresarial/",
+  "/rendicion-de-cuentas/": "/transparencia/",
+  "/informe-de-gestion-2023-2024/": "/transparencia/",
 };

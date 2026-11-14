@@ -22,6 +22,12 @@ function jw_entero(mixed $valor, int $min, int $max): int {
     return is_numeric($valor) ? max($min, min($max, (int) $valor)) : $min;
 }
 
+function jw_pesos(mixed $valor): int {
+    $texto = is_scalar($valor) ? (string) $valor : '';
+    $entero = preg_replace('/[\s$.\x{00A0}]/u', '', explode(',', $texto)[0]);
+    return preg_match('/^[0-9]{1,13}$/', (string) $entero) ? (int) $entero : -1;
+}
+
 function jw_enum(mixed $valor, array $permitidos, string $defecto): string {
     return is_string($valor) && in_array($valor, $permitidos, true) ? $valor : $defecto;
 }

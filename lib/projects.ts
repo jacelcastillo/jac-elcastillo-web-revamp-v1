@@ -10,7 +10,7 @@ export const STATUS_TONES: Record<string, "leaf" | "sun" | "blue" | "muted"> = {
   suspendido: "muted",
 };
 
-const count = (value: unknown, max = Number.MAX_SAFE_INTEGER) =>
+export const count = (value: unknown, max = Number.MAX_SAFE_INTEGER) =>
   typeof value === "number" && Number.isInteger(value) && value > 0 ? Math.min(value, max) : 0;
 
 function toProject(raw: unknown, statuses: Category[]): Project[] {
