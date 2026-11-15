@@ -66,7 +66,14 @@ function toItem(raw: unknown): BudgetItem[] {
 function toMonth(raw: unknown): MonthTotal[] {
   if (!isRecord(raw) || typeof raw.mes !== "number" || !Number.isInteger(raw.mes)) return [];
   if (raw.mes < 1 || raw.mes > 12) return [];
-  return [{ month: raw.mes, income: count(raw.ingresos), expense: count(raw.egresos) }];
+  return [
+    {
+      month: raw.mes,
+      income: count(raw.ingresos),
+      expense: count(raw.egresos),
+      ...(typeof raw.aportes === "number" && { contributions: count(raw.aportes) }),
+    },
+  ];
 }
 
 function toYear(raw: unknown): FiscalYear[] {
@@ -80,6 +87,7 @@ function toYear(raw: unknown): FiscalYear[] {
       months: Array.isArray(raw.meses)
         ? raw.meses.flatMap(toMonth).sort((a, b) => a.month - b.month)
         : [],
+      ...(typeof raw.saldo_inicial === "number" && { openingBalance: count(raw.saldo_inicial) }),
     },
   ];
 }
@@ -141,6 +149,53 @@ export function budgetTotals(items: BudgetItem[], kind: BudgetKind) {
 
 export const percent = (executedValue: number, budgeted: number) =>
   budgeted > 0 ? Math.round((executedValue / budgeted) * 100) : null;
+
+export const available = (totals: { budgeted: number; executed: number }) => totals.budgeted - totals.executed;
+
+export function executionRate(year: FiscalYear): number | null {
+  const { budgeted, executed: spent } = budgetTotals(year.items, "egreso");
+  return spent > 0 ? percent(spent, budgeted) : null;
+}
+
+export function contributions(year: FiscalYear): number | null {
+  const given = year.months.filter((m) => m.contributions !== undefined);
+  return given.length > 0 ? sum(given, (m) => m.contributions ?? 0) : null;
+}
+
+export function balances(year: FiscalYear): number[] | null {
+  if (year.openingBalance === undefined || year.months.length === 0) return null;
+  let balance = year.openingBalance;
+  return year.months.map((m) => (balance += m.income - m.expense));
+}
+
+export type GroupTotal = BudgetGroup & { kind: BudgetKind };
+
+export const groupTotals = (items: BudgetItem[]): GroupTotal[] =>
+  KINDS.flatMap((kind) => budgetGroups(items, kind).map((group) => ({ ...group, kind })));
+
+export type YearRow = {
+  year: number;
+  label: string;
+  budgeted: { income: number; expense: number };
+  executed: { income: number; expense: number } | null;
+};
+
+export function yearComparison(years: FiscalYear[]): YearRow[] {
+  return years
+    .map((year) => {
+      const done = executed(year);
+      return {
+        year: year.year,
+        label: done?.label ?? String(year.year),
+        budgeted: {
+          income: budgetTotals(year.items, "ingreso").budgeted,
+          expense: budgetTotals(year.items, "egreso").budgeted,
+        },
+        executed: done && { income: done.income, expense: done.expense },
+      };
+    })
+    .filter((row) => row.budgeted.income + row.budgeted.expense + (row.executed ? row.executed.income + row.executed.expense : 0) > 0);
+}
 
 const decimal = new Intl.NumberFormat("es-CO", { maximumFractionDigits: 1 });
 

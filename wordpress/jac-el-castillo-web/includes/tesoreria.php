@@ -72,6 +72,9 @@ function jw_registrar_vigencias(): void {
             'sanitize_callback' => static fn($v): string => jw_parrafo($v, JW_TABLA_MAX),
         ] + $meta);
     }
+    register_post_meta('jw_vigencia', 'jw_saldo_inicial', $meta + [
+        'sanitize_callback' => static fn($v): string => jw_texto($v, 30),
+    ]);
     register_post_meta('jw_vigencia', 'jw_nota', $meta + [
         'sanitize_callback' => static fn($v): string => jw_parrafo($v, 300),
     ]);
@@ -159,30 +162,39 @@ function jw_numero_mes(string $celda): int {
     return 0;
 }
 
+/** Vacío o ilegible es null: el saldo no se conoce. */
+function jw_saldo_inicial(string $texto): ?int {
+    $saldo = trim($texto) === '' ? -1 : jw_celda_pesos($texto);
+    return $saldo >= 0 ? $saldo : null;
+}
+
 /**
- * Un mes repetido conserva su última fila.
+ * Un mes repetido conserva su última fila. Aportes vacío es null.
  *
- * @return array{filas: list<array{mes: int, ingresos: int, egresos: int}>, errores: list<string>}
+ * @return array{filas: list<array{mes: int, ingresos: int, egresos: int, aportes: ?int}>, errores: list<string>}
  */
 function jw_tabla_meses(string $texto): array {
     $porMes = [];
     $errores = [];
     foreach (jw_filas_pegadas($texto, 'mes') as $numero => $celdas) {
-        $celdas = array_pad($celdas, 3, '');
+        $celdas = array_pad($celdas, 4, '');
         $mes = jw_numero_mes($celdas[0]);
         $ingresos = jw_celda_pesos($celdas[1]);
         $egresos = jw_celda_pesos($celdas[2]);
+        $aportes = $celdas[3] === '' ? null : jw_celda_pesos($celdas[3]);
         $falla = match (true) {
             $mes === 0 => 'Mes debe ser un número de 1 a 12 o el nombre del mes',
             $ingresos < 0 => 'Ingresos no es un número',
             $egresos < 0 => 'Egresos no es un número',
+            $aportes !== null && $aportes < 0 => 'Aportes no es un número',
+            $aportes !== null && $aportes > $ingresos => 'Aportes no puede ser mayor que Ingresos',
             default => '',
         };
         if ($falla !== '') {
             $errores[] = "Fila $numero: $falla";
             continue;
         }
-        $porMes[$mes] = ['mes' => $mes, 'ingresos' => $ingresos, 'egresos' => $egresos];
+        $porMes[$mes] = ['mes' => $mes, 'ingresos' => $ingresos, 'egresos' => $egresos, 'aportes' => $aportes];
     }
     ksort($porMes);
     return ['filas' => array_values($porMes), 'errores' => $errores];
@@ -241,27 +253,45 @@ function jw_pintar_vista_presupuesto(string $texto): void {
     echo '</tfoot></table>';
 }
 
-function jw_pintar_vista_meses(string $texto): void {
+function jw_pintar_vista_meses(string $texto, ?int $saldoInicial): void {
     $tabla = jw_tabla_meses($texto);
     jw_pintar_errores($tabla['errores']);
-    if ($tabla['filas'] === []) {
+    $filas = $tabla['filas'];
+    if ($filas === []) {
         return;
     }
+    $conAportes = array_filter(array_column($filas, 'aportes'), static fn($a): bool => $a !== null) !== [];
+    $titulos = '<th>Mes</th><th>Ingresos</th><th>Egresos</th>' . ($conAportes ? '<th>Aportes</th>' : '') . ($saldoInicial !== null ? '<th>Saldo</th>' : '');
     echo '<p><strong>Esto es lo que entendió el sitio:</strong></p>';
-    echo '<table class="widefat striped"><thead><tr><th>Mes</th><th>Ingresos</th><th>Egresos</th></tr></thead><tbody>';
-    foreach ($tabla['filas'] as $fila) {
-        printf(
-            '<tr><td>%s</td><td>%s</td><td>%s</td></tr>',
-            esc_html(JW_MESES[$fila['mes']][1]),
-            esc_html(jw_pesos_texto($fila['ingresos'])),
-            esc_html(jw_pesos_texto($fila['egresos']))
-        );
+    echo '<table class="widefat striped"><thead><tr>' . $titulos . '</tr></thead><tbody>';
+    $saldo = $saldoInicial;
+    foreach ($filas as $fila) {
+        $saldo = $saldo === null ? null : $saldo + $fila['ingresos'] - $fila['egresos'];
+        echo '<tr><td>' . esc_html(JW_MESES[$fila['mes']][1]) . '</td>'
+            . '<td>' . esc_html(jw_pesos_texto($fila['ingresos'])) . '</td>'
+            . '<td>' . esc_html(jw_pesos_texto($fila['egresos'])) . '</td>'
+            . ($conAportes ? '<td>' . esc_html($fila['aportes'] === null ? '' : jw_pesos_texto($fila['aportes'])) . '</td>' : '')
+            . ($saldo !== null ? '<td>' . esc_html(jw_pesos_texto($saldo)) . '</td>' : '')
+            . '</tr>';
     }
-    printf(
-        '</tbody><tfoot><tr><th>Total</th><th>%s</th><th>%s</th></tr></tfoot></table>',
-        esc_html(jw_pesos_texto(array_sum(array_column($tabla['filas'], 'ingresos')))),
-        esc_html(jw_pesos_texto(array_sum(array_column($tabla['filas'], 'egresos'))))
-    );
+    echo '</tbody><tfoot><tr><th>Total</th>'
+        . '<th>' . esc_html(jw_pesos_texto(array_sum(array_column($filas, 'ingresos')))) . '</th>'
+        . '<th>' . esc_html(jw_pesos_texto(array_sum(array_column($filas, 'egresos')))) . '</th>'
+        . ($conAportes ? '<th>' . esc_html(jw_pesos_texto((int) array_sum(array_column($filas, 'aportes')))) . '</th>' : '')
+        . ($saldoInicial !== null ? '<th></th>' : '')
+        . '</tr></tfoot></table>';
+}
+
+function jw_pintar_vista_saldo_inicial(string $texto): void {
+    if (trim($texto) === '') {
+        return;
+    }
+    $saldo = jw_saldo_inicial($texto);
+    if ($saldo === null) {
+        echo '<div class="notice notice-error inline"><p>El saldo inicial no es un número. Corrígelo y guarda de nuevo: mientras tanto el sitio no muestra el saldo.</p></div>';
+        return;
+    }
+    echo '<p><strong>Saldo inicial leído:</strong> ' . esc_html(jw_pesos_texto($saldo)) . '</p>';
 }
 
 function jw_pintar_caja_vigencia(WP_Post $post): void {
@@ -284,9 +314,15 @@ function jw_pintar_caja_vigencia(WP_Post $post): void {
     <p>
         <label for="jw_meses"><strong>Meses</strong></label><br>
         <textarea id="jw_meses" name="jw_meses" class="large-text code" rows="6" maxlength="<?php echo esc_attr((string) JW_TABLA_MAX); ?>"><?php echo esc_textarea($meta('jw_meses')); ?></textarea><br>
-        <span class="description">Tres columnas: Mes, Ingresos y Egresos. El mes va como número (7) o como nombre (julio o jul), nunca como fecha porque Excel la cambia. El año es el de la vigencia. Al cerrar cada mes, agrega la fila con los totales de ingresos y egresos del Excel.</span>
+        <span class="description">Cuatro columnas: Mes, Ingresos, Egresos y Aportes (opcional). El mes va como número (7) o como nombre (julio o jul), nunca como fecha porque Excel la cambia. El año es el de la vigencia. Al cerrar cada mes, agrega la fila con los totales de ingresos y egresos del Excel. Aportes es la parte de los ingresos que vino de los condominios (fila TOTAL de APORTES CONDOMINIOS) y no puede ser mayor que Ingresos. Sin la columna, el sitio no muestra los aportes.</span>
     </p>
-    <?php jw_pintar_vista_meses($meta('jw_meses')); ?>
+    <?php jw_pintar_vista_meses($meta('jw_meses'), jw_saldo_inicial($meta('jw_saldo_inicial'))); ?>
+    <p>
+        <label for="jw_saldo_inicial"><strong>Saldo inicial</strong></label>
+        <input type="text" id="jw_saldo_inicial" name="jw_saldo_inicial" class="regular-text" maxlength="30" value="<?php echo esc_attr($meta('jw_saldo_inicial')); ?>"><br>
+        <span class="description">Opcional. Lo que había en el banco y en caja al empezar el primer mes de la tabla de Meses (por ejemplo, $ 1.000.000). Con él, el sitio dibuja la línea de saldo y la columna Saldo. Vacío significa que no se conoce, y entonces no salen.</span>
+    </p>
+    <?php jw_pintar_vista_saldo_inicial($meta('jw_saldo_inicial')); ?>
     <p>
         <label for="jw_nota"><strong>Nota</strong></label><br>
         <textarea id="jw_nota" name="jw_nota" class="large-text" rows="2" maxlength="300"><?php echo esc_textarea($meta('jw_nota')); ?></textarea><br>
@@ -300,7 +336,7 @@ function jw_guardar_vigencia(int $id): void {
     if (!jw_guardar_caja($id, 'jw_vigencia_guardar', 'jw_vigencia_nonce')) {
         return;
     }
-    foreach (['jw_anio', 'jw_presupuesto', 'jw_meses', 'jw_nota'] as $clave) {
+    foreach (['jw_anio', 'jw_presupuesto', 'jw_meses', 'jw_saldo_inicial', 'jw_nota'] as $clave) {
         $valor = isset($_POST[$clave]) ? wp_unslash($_POST[$clave]) : '';
         update_post_meta($id, $clave, $valor);
     }

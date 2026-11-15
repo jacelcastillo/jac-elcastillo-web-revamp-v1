@@ -96,7 +96,7 @@ app/                    rutas (App Router)
   comisiones/[slug]/    ficha de la comisión con su rendición de cuentas
   proyectos/page.tsx    proyectos con filtros por categoría y estado
   proyectos/[slug]/     ficha del proyecto con sus avances
-  transparencia/page.tsx cifras, presupuesto por vigencia, gráfico mensual y documentos, con filtros por año y tipo
+  transparencia/page.tsx cifras, presupuesto por vigencia, gráfico mensual, comparación entre vigencias y documentos, con filtros por año y tipo
   contacto/page.tsx     contacto (estática)
   [...path]/page.tsx    cualquier entrada o página de WordPress, incluidas las páginas hijas
   robots.ts             Disallow: /
@@ -119,7 +119,7 @@ lib/
   cms/projects.ts       getProjectsPage(): proyectos y estados
   commissions.ts        toCommissionsPage(), commissionSections(), COMMISSION_TONES
   cms/commissions.ts    getCommissionsPage(): comisiones, tipos y estados
-  transparency.ts       toTransparencyPage(), executed(), budgetGroups(), formatSize(), filterDocuments()
+  transparency.ts       toTransparencyPage(), executed(), budgetGroups(), executionRate(), balances(), yearComparison(), formatSize(), filterDocuments()
   cms/transparency.ts   getTransparencyPage(): documentos, tipos y vigencias
   redirects.ts          LEGACY_PATHS: rutas viejas de WordPress y su destino (next.config.ts y check-urls)
   paths.ts              pathOf(), pickByPath() y sortChildren(): rutas anidadas de páginas hijas
@@ -143,7 +143,7 @@ wordpress/              plugin jac-el-castillo-web, WordPress local y datos de p
 | `/comisiones/<slug>/` | Ficha de la comisión: estado, fundamento, funciones, proyectos a su cargo (debajo de los integrantes) y rendición de cuentas (hasta 6 entradas de la categoría con el mismo slug) | ISR |
 | `/proyectos/` | Proyectos con filtros `?categoria=<slug>` y `?estado=<valor>`. Un valor que no existe da 404 | En cada visita (`force-dynamic`), con datos en caché |
 | `/proyectos/<slug>/` | Ficha del proyecto, con sus avances (hasta 6 entradas de la categoría con el mismo slug) | ISR |
-| `/transparencia/` | Hero con las cifras de la vigencia, chips de vigencia (`?anio=<año>`, por defecto la más reciente), presupuesto agrupado, gráfico mensual con su tabla, documentos con chips por tipo (`?tipo=<valor>`) y proyectos en curso. Un valor que no existe da 404 | En cada visita (`force-dynamic`), con datos en caché |
+| `/transparencia/` | Hero con las cifras de la vigencia, chips de vigencia (`?anio=<año>`, por defecto la más reciente), presupuesto agrupado con su gráfica por grupo, gráfico mensual con su tabla, comparación entre vigencias, documentos con chips por tipo (`?tipo=<valor>`) y proyectos en curso. Un valor que no existe da 404 | En cada visita (`force-dynamic`), con datos en caché |
 | `/rendicion-de-cuentas/`, `/informe-de-gestion-2023-2024/` | Redirigen (308) a `/transparencia/`. WordPress no cambia | `next.config.ts` |
 | `/contacto/` | Datos de contacto de `lib/site.ts` | Estática, en el build |
 | `/<ruta>/` | Cualquier entrada o página de WordPress en la ruta de su enlace (`link`), incluidas las páginas hijas (`/historia/2022-2026/`). Una página con páginas hijas las lista como tarjetas bajo su contenido. Una página cuyo slug es un período (`AAAA-AAAA`) muestra además sus Dignatarios, con un título por sección. Entrar a una página hija por su ruta plana redirige (308) a la anidada | ISR: se genera en la primera visita y se renueva cada 5 minutos |
@@ -356,28 +356,37 @@ Los dignatarios (2026-2030 y los coordinadores de 2022-2026) se cargan con `carg
 
 **Documentos** (`jw_documento`, menú Documentos): título, tipo (Informe de gestión, Financiero, Acta, Resolución, Plan u Otro), fecha opcional y el archivo, que se sube con el selector de la caja del Documento. Sin archivo, el documento no se publica. Las actas y resoluciones se publican solo cuando están aprobadas y revisadas, sin cédulas, teléfonos ni correos personales.
 
-**Vigencias** (`jw_vigencia`, menú Vigencias): un registro por año, de enero a diciembre, con título automático «Vigencia AAAA». Si el año ya existe, se edita esa vigencia: con dos del mismo año gana la última modificada. Tiene 3 campos que se pegan desde Excel, con las celdas copiadas tal cual:
+**Vigencias** (`jw_vigencia`, menú Vigencias): un registro por año, de enero a diciembre, con título automático «Vigencia AAAA». Si el año ya existe, se edita esa vigencia: con dos del mismo año gana la última modificada. Tiene 3 campos que se pegan desde Excel, con las celdas copiadas tal cual, y el Saldo inicial, que se escribe:
 
 | Campo | Columnas | Reglas |
 |---|---|---|
 | Presupuesto | Clase, Grupo, Rubro, Presupuestado, Ejecutado | Clase acepta Ingreso, Ingresos, Egreso, Egresos, Gasto o Gastos. Los valores aceptan «$», puntos y espacios, y los decimales se ignoran. La fila de títulos es opcional. Una celda vacía vale 0, y en el sitio no salen las filas con presupuestado y ejecutado en 0. |
-| Meses | Mes, Ingresos, Egresos | Mes es el número (7) o el nombre (julio o jul), nunca una fecha, porque Excel la convierte. El año es el de la vigencia. Un mes repetido conserva su última fila. |
+| Meses | Mes, Ingresos, Egresos, Aportes (opcional) | Mes es el número (7) o el nombre (julio o jul), nunca una fecha, porque Excel la convierte. El año es el de la vigencia. Un mes repetido conserva su última fila. Aportes es la parte de los ingresos que vino de los condominios (la fila TOTAL de APORTES CONDOMINIOS del Excel). Vacío, el sitio no muestra los aportes de ese mes. Si es mayor que Ingresos, la fila da error. |
+| Saldo inicial | Un valor, hasta 30 caracteres | El saldo en el banco y en caja al empezar el primer mes de la tabla de Meses. Se lee con las mismas reglas de los valores pegados («$», puntos y «$ -»). Vacío significa que no se conoce, y entonces no salen la línea de saldo ni la columna Saldo. |
 | Nota | Texto de hasta 300 caracteres | La fuente de las cifras o una aclaración. Sale debajo del presupuesto. |
 
-Se guarda el texto pegado tal cual y se interpreta al mostrarlo. Al guardar, la caja muestra lo que entendió: la tabla con el total de cada clase, para compararla con el Excel, y la lista de filas que no pudo leer con su número (por ejemplo «Fila 4: Presupuestado no es un número»). Esas filas no se publican.
+Se guarda el texto pegado tal cual y se interpreta al mostrarlo. Al guardar, la caja muestra lo que entendió: la tabla con el total de cada clase, para compararla con el Excel, el saldo inicial leído, y la lista de filas que no pudo leer con su número (por ejemplo «Fila 4: Presupuestado no es un número»). Esas filas no se publican.
 
-El modelo `modelo-presupuesto.xlsx` va dentro del plugin (`assets/`) y la caja de la vigencia lo enlaza. Tiene la hoja Presupuesto con los 20 rubros de la estructura 2024 y la hoja Meses, sin valores ni datos de personas.
+El modelo `modelo-presupuesto.xlsx` va dentro del plugin (`assets/`) y la caja de la vigencia lo enlaza. Tiene la hoja Presupuesto con los 20 rubros de la estructura 2024 y la hoja Meses (Mes, Ingresos, Egresos y Aportes), sin valores ni datos de personas.
 
 **Protocolo de carga**
 
 | Cuándo | Quién | Qué hace en wp-admin |
 |---|---|---|
-| Al cerrar cada mes | Tesorería | Abre la vigencia del año y, en Meses, agrega la fila del mes con las filas TOTAL INGRESOS y TOTAL EGRESOS del Excel (o pega la tabla completa). |
+| Al cerrar cada mes | Tesorería | Abre la vigencia del año y, en Meses, agrega la fila del mes con las filas TOTAL INGRESOS, TOTAL EGRESOS y TOTAL de APORTES CONDOMINIOS del Excel (o pega la tabla completa). |
+| Una vez por vigencia | Tesorería | Escribe el Saldo inicial con el saldo del extracto bancario y de caja al empezar el primer mes de la tabla de Meses. |
 | Cuando la asamblea aprueba el presupuesto | Tesorería | Crea la vigencia y pega el Presupuesto desde el modelo (estatutos, art. 140). |
 | Con cada informe aprobado por la Junta | Tesorería | Pega de nuevo el Presupuesto con el Ejecutado al día, y sube el PDF del informe como **Documento** de tipo Financiero. |
 | Cuando se aprueba un acta o una resolución | Secretaría | Crea un **Documento** de tipo Acta o Resolución con el PDF revisado, sin cédulas, teléfonos ni correos personales. |
 
-**Qué se ve.** Las 3 cifras del hero son los ingresos ejecutados, los egresos ejecutados y los proyectos en curso. El ejecutado sale de los meses si la vigencia los tiene, con la etiqueta de los meses que cubre (por ejemplo «2026, jul a sep»). Sin meses, es la suma del ejecutado de los rubros. Sin ninguno de los dos, dice «Sin datos de ejecución». El presupuesto muestra una tarjeta por clase y los rubros agrupados con su subtotal, y sin rubros dice que el presupuesto aún no está aprobado por la asamblea general. Con presupuestado 0 solo sale lo ejecutado, sin barra. Las barras del gráfico mensual son CSS dibujado en el servidor y llevan `aria-hidden`: la tabla de Mes, Ingresos y Egresos es el contenido accesible.
+**Qué se ve.**
+
+- **Hero:** hasta 5 cifras de la vigencia elegida, cada una solo cuando hay datos: ingresos ejecutados, egresos ejecutados, ejecución de egresos (ejecutado sobre presupuestado, si hay presupuesto y ejecutado), aportes de condominios recibidos (si los meses traen la columna Aportes) y proyectos en curso. El ejecutado sale de los meses si la vigencia los tiene, con la etiqueta de los meses que cubre (por ejemplo «2026, jul a sep»). Sin meses, es la suma del ejecutado de los rubros. Sin ninguno de los dos, dice «Sin datos de ejecución».
+- **Presupuesto:** una gráfica por grupo (Ingresos, Funcionamiento, Operacionales, Reservas) con una barra de lo presupuestado y otra de lo ejecutado, a la misma escala, y debajo una tarjeta por clase con los rubros agrupados y su subtotal. Con ejecución, cada tarjeta muestra el «Disponible» (presupuestado menos ejecutado) o, si se pasó, «Sobre el presupuesto». Sin ejecución, la gráfica solo muestra el presupuesto. Sin rubros dice que el presupuesto aún no está aprobado por la asamblea general. Con presupuestado 0 solo sale lo ejecutado, sin barra.
+- **Ingresos y egresos por mes:** barras por mes y su tabla. Con Aportes, la tabla suma esa columna. Con Saldo inicial, la gráfica suma una línea de saldo al cierre de cada mes (saldo inicial más los ingresos acumulados menos los egresos acumulados), la tabla suma la columna Saldo y arriba sale una tarjeta con el saldo del último mes. Sin meses el saldo no sale, porque el ejecutado del presupuesto no coincide con la contabilidad.
+- **Comparación entre vigencias:** una fila por año con barras de ingresos y egresos presupuestados y ejecutados, y su tabla. El ejecutado sigue la misma regla del hero, y una vigencia parcial lo dice («2026, jul a sep»).
+
+Todas las barras y la línea son CSS y SVG dibujados en el servidor y llevan `aria-hidden`: cada cifra está también como texto o en una tabla accesible.
 
 `GET /wp-json/jac-web/v1/transparencia`: pública, de solo lectura y con `Cache-Control: public, max-age=300`.
 
@@ -388,10 +397,11 @@ El modelo `modelo-presupuesto.xlsx` va dentro del plugin (`assets/`) y la caja d
   "vigencias": [ { "anio": 2023, "nota": "...",
                    "rubros": [ { "clase": "ingreso", "grupo": "Ingresos", "nombre": "Cuotas por conjuntos",
                                  "presupuestado": 32460000, "ejecutado": 6535800 } ],
-                   "meses": [ { "mes": 7, "ingresos": 1340200, "egresos": 64974 } ] } ] }
+                   "meses": [ { "mes": 7, "ingresos": 1340200, "egresos": 64974, "aportes": 1340200 } ],
+                   "saldo_inicial": 1000000 } ] }
 ```
 
-Solo entra lo publicado y sin contraseña. Un documento sin adjunto válido no sale, y una vigencia sin rubros, sin meses y sin nota tampoco. Los documentos van por fecha descendente (sin fecha al final, por título), las vigencias de la más nueva a la más vieja, los rubros en el orden en que se pegaron y los meses del 1 al 12. `tamano` es 0 si no se conoce. La app solo acepta una `url` que empiece por `/wp-content/uploads/` del dominio de WordPress.
+Solo entra lo publicado y sin contraseña. Un documento sin adjunto válido no sale, y una vigencia sin rubros, sin meses y sin nota tampoco. Los documentos van por fecha descendente (sin fecha al final, por título), las vigencias de la más nueva a la más vieja, los rubros en el orden en que se pegaron y los meses del 1 al 12. `tamano` es 0 si no se conoce. `aportes` y `saldo_inicial` son `null` si no se cargaron. Una app anterior a esta versión ignora las llaves nuevas, y una app nueva con el plugin 0.8 muestra la página como antes. La app solo acepta una `url` que empiece por `/wp-content/uploads/` del dominio de WordPress.
 
 #### Roles y migraciones
 
@@ -401,7 +411,7 @@ Subir el zip con «Reemplazar el actual» no corre la activación del plugin. Po
 
 #### Carga del histórico
 
-`cargas/cargar-transparencia.js` (fuera de git, como los demás) carga los 11 documentos que ya están en la biblioteca de medios y las vigencias 2022, 2023, 2024 y 2026. Flujo: pegarlo en la consola de una página de wp-admin con la sesión iniciada. Con `APLICAR = false` solo lee, comprueba que existan los tipos y los 11 archivos (si falta uno, se detiene sin crear nada) y muestra qué haría. Con `APLICAR = true` crea lo que falta y comprueba los totales publicados. Es idempotente: un documento se reconoce por su adjunto y una vigencia por su año.
+`cargas/cargar-transparencia.js` (fuera de git, como los demás) carga los 11 documentos que ya están en la biblioteca de medios y las vigencias 2022, 2023, 2024 y 2026 (la de 2026 con la columna Aportes igual a los ingresos, y sin saldo inicial hasta que la Tesorería dé el saldo al 1 de julio). Flujo: pegarlo en la consola de una página de wp-admin con la sesión iniciada. Con `APLICAR = false` solo lee, comprueba que existan los tipos y los 11 archivos (si falta uno, se detiene sin crear nada) y muestra qué haría. Con `APLICAR = true` crea lo que falta y comprueba los totales publicados. Es idempotente: un documento se reconoce por su adjunto y una vigencia por su año.
 
 ### Probarlo en local
 

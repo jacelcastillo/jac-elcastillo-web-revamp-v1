@@ -7,8 +7,9 @@ import { DocumentList } from "@/components/organisms/DocumentList";
 import { Hero } from "@/components/organisms/Hero";
 import { MonthlyChart } from "@/components/organisms/MonthlyChart";
 import { ProjectGrid } from "@/components/organisms/ProjectGrid";
+import { YearComparison } from "@/components/organisms/YearComparison";
 import { formatCOP } from "@/lib/projects";
-import { executed } from "@/lib/transparency";
+import { contributions, executed, executionRate } from "@/lib/transparency";
 import type { Category, FiscalYear, Project, PublicDocument } from "@/lib/types";
 
 type TransparencyTemplateProps = {
@@ -33,6 +34,8 @@ export function TransparencyTemplate({
   hrefFor,
 }: TransparencyTemplateProps) {
   const done = year && executed(year);
+  const rate = year ? executionRate(year) : null;
+  const received = year ? contributions(year) : null;
   const stats = [
     ...(year && done
       ? [
@@ -42,6 +45,10 @@ export function TransparencyTemplate({
       : year
         ? [{ value: "Sin datos de ejecución", label: `Vigencia ${year.year}` }]
         : []),
+    ...(rate !== null ? [{ value: `${rate}%`, label: "Ejecución de egresos" }] : []),
+    ...(received !== null
+      ? [{ value: formatCOP(received), label: "Aportes de condominios recibidos" }]
+      : []),
     { value: String(ongoing.length), label: "Proyectos en curso" },
   ];
   return (
@@ -50,7 +57,7 @@ export function TransparencyTemplate({
         <p className="max-w-3xl">
           Las cuentas y los documentos de la Junta, para que toda la comunidad pueda consultarlos.
         </p>
-        <div className="mt-6 grid max-w-3xl gap-3 sm:grid-cols-3">
+        <div className="mt-6 grid max-w-5xl gap-3 sm:grid-cols-2 lg:grid-cols-[repeat(auto-fill,minmax(12rem,1fr))]">
           {stats.map((stat) => (
             <Stat key={stat.label} {...stat} />
           ))}
@@ -70,6 +77,7 @@ export function TransparencyTemplate({
             </div>
             <BudgetTable year={year} />
             <MonthlyChart year={year} />
+            <YearComparison years={years} />
           </>
         )}
         <DocumentList

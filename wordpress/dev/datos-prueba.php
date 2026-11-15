@@ -373,11 +373,13 @@ jw_prueba_vigencia('2025', 2025, [
         $fila('Egreso', 'Reservas', 'Rubro en cero', '0', '0'),
     ]),
     'jw_meses' => implode("\n", [
-        $fila('Mes', 'Ingresos', 'Egresos'),
-        $fila('julio', '1.000', '500'),
+        $fila('Mes', 'Ingresos', 'Egresos', 'Aportes'),
+        $fila('julio', '1.000', '500', '$ 400'),
         $fila('8', '2000', '1000'),
+        $fila('9', '100', '10', '200'),
         $fila('13', '5', '5'),
     ]),
+    'jw_saldo_inicial' => '$ 1.000.000',
     'jw_nota' => 'Nota de prueba de la vigencia 2025.',
 ]);
 jw_prueba_vigencia('2026', 2026, ['jw_meses' => implode("\n", [$fila('7', '100', '50'), $fila('9', '300', '150')])]);

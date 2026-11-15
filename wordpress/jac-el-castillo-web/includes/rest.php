@@ -270,6 +270,7 @@ function jw_vigencias_publicas(): array {
             'nota' => jw_parrafo(jw_plano($meta('jw_nota')), 300),
             'rubros' => jw_tabla_presupuesto((string) $meta('jw_presupuesto'))['filas'],
             'meses' => jw_tabla_meses((string) $meta('jw_meses'))['filas'],
+            'saldo_inicial' => jw_saldo_inicial((string) $meta('jw_saldo_inicial')),
         ];
     }
 

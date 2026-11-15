@@ -64,8 +64,14 @@ export type PublicDocument = {
 };
 export type BudgetKind = "ingreso" | "egreso";
 export type BudgetItem = { kind: BudgetKind; group: string; name: string; budgeted: number; executed: number };
-export type MonthTotal = { month: number; income: number; expense: number };
-export type FiscalYear = { year: number; note: string; items: BudgetItem[]; months: MonthTotal[] };
+export type MonthTotal = { month: number; income: number; expense: number; contributions?: number };
+export type FiscalYear = {
+  year: number;
+  note: string;
+  items: BudgetItem[];
+  months: MonthTotal[];
+  openingBalance?: number;
+};
 export type TransparencyPage = { types: Category[]; documents: PublicDocument[]; years: FiscalYear[] };
 export type NavItem = { label: string; href: string };
 export type NavGroup = { label: string; items: NavItem[] };

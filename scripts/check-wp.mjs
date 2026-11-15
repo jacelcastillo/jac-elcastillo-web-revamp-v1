@@ -282,7 +282,8 @@ check(
   'transparencia: cada vigencia tiene exactamente las llaves del contrato, con rubros y meses válidos',
   vigencias.every(
     (v) =>
-      mismasLlaves(v, ['anio', 'nota', 'rubros', 'meses']) &&
+      mismasLlaves(v, ['anio', 'nota', 'rubros', 'meses', 'saldo_inicial']) &&
+      (v.saldo_inicial === null || entero(v.saldo_inicial)) &&
       Number.isInteger(v.anio) &&
       v.anio >= 2000 &&
       v.anio <= 2100 &&
@@ -298,7 +299,7 @@ check(
           entero(r.presupuestado) &&
           entero(r.ejecutado),
       ) &&
-      v.meses.every((m, i) => mismasLlaves(m, ['mes', 'ingresos', 'egresos']) && m.mes >= 1 && m.mes <= 12 && entero(m.ingresos) && entero(m.egresos) && (i === 0 || v.meses[i - 1].mes < m.mes)),
+      v.meses.every((m, i) => mismasLlaves(m, ['mes', 'ingresos', 'egresos', 'aportes']) && m.mes >= 1 && m.mes <= 12 && entero(m.ingresos) && entero(m.egresos) && (m.aportes === null || (entero(m.aportes) && m.aportes <= m.ingresos)) && (i === 0 || v.meses[i - 1].mes < m.mes)),
   ),
 )
 check('transparencia: vigencias de la más nueva a la más vieja, sin repetir año', vigencias.every((v, i) => i === 0 || vigencias[i - 1].anio > v.anio), vigencias.map((v) => v.anio).join(','))
@@ -653,15 +654,25 @@ check(
   JSON.stringify(v2025?.rubros),
 )
 check(
-  'transparencia: 2025 lee los meses por nombre y por número, y el mes 13 no sale',
-  JSON.stringify(v2025?.meses) === JSON.stringify([{ mes: 7, ingresos: 1000, egresos: 500 }, { mes: 8, ingresos: 2000, egresos: 1000 }]),
+  'transparencia: 2025 lee los meses por nombre y por número, Aportes con "$" o vacío (null), y descarta el mes 13 y el de aportes mayores que ingresos',
+  JSON.stringify(v2025?.meses) ===
+    JSON.stringify([{ mes: 7, ingresos: 1000, egresos: 500, aportes: 400 }, { mes: 8, ingresos: 2000, egresos: 1000, aportes: null }]),
   JSON.stringify(v2025?.meses),
 )
+check('transparencia: 2025 lee el saldo inicial "$ 1.000.000"', v2025?.saldo_inicial === 1000000, String(v2025?.saldo_inicial))
+const erroresMeses = wp('eval', "echo json_encode([jw_tabla_meses(\"9\\t100\\t10\\t200\")['errores'], jw_tabla_meses(\"9\\t100\\t10\\tabc\")['errores']], JSON_UNESCAPED_UNICODE); ")
+check(
+  'transparencia: Aportes mayor que Ingresos o ilegible da error de fila',
+  erroresMeses.stdout?.trim() === '[["Fila 1: Aportes no puede ser mayor que Ingresos"],["Fila 1: Aportes no es un número"]]',
+  erroresMeses.stdout?.trim(),
+)
+const saldos = wp('eval', "echo json_encode([jw_saldo_inicial(''), jw_saldo_inicial('  '), jw_saldo_inicial('abc'), jw_saldo_inicial('-5'), jw_saldo_inicial('$ -'), jw_saldo_inicial('$ 2.500.000,75')]);")
+check('transparencia: saldo inicial vacío o inválido es null, "$ -" es 0 y los decimales se ignoran', saldos.stdout?.trim() === '[null,null,null,null,0,2500000]', saldos.stdout?.trim())
 check('transparencia: 2025 trae su nota', v2025?.nota === 'Nota de prueba de la vigencia 2025.', v2025?.nota)
 const v2026 = vigencias.find((v) => v.anio === 2026)
 check(
   'transparencia: 2026 solo tiene meses',
-  v2026?.rubros.length === 0 && JSON.stringify(v2026.meses) === JSON.stringify([{ mes: 7, ingresos: 100, egresos: 50 }, { mes: 9, ingresos: 300, egresos: 150 }]) && v2026.nota === '',
+  v2026?.rubros.length === 0 && JSON.stringify(v2026.meses) === JSON.stringify([{ mes: 7, ingresos: 100, egresos: 50, aportes: null }, { mes: 9, ingresos: 300, egresos: 150, aportes: null }]) && v2026.nota === '' && v2026.saldo_inicial === null,
   JSON.stringify(v2026),
 )
 
@@ -686,8 +697,8 @@ const leer = (r) => {
 }
 const antes = leer(rol())
 check(
-  'migración: jw_version en 0.8.0 y el rol "Tesorería y documentos" con read, upload_files y los 10 permisos, sin edit_posts',
-  antes.version === '0.8.0' &&
+  'migración: jw_version en 0.9.0 y el rol "Tesorería y documentos" con read, upload_files y los 10 permisos, sin edit_posts',
+  antes.version === '0.9.0' &&
     antes.nombre === 'Tesorería y documentos' &&
     antes.caps?.length === 12 &&
     antes.caps.includes('read') &&
@@ -699,7 +710,7 @@ check(
 check('migración: administrator y editor reciben los permisos', antes.admin === true, JSON.stringify(antes))
 const repetida = wp('eval', "delete_option('jw_version'); jw_migrar(); echo get_option('jw_version');")
 const despues = leer(rol())
-check('migración: correrla otra vez no duplica nada', repetida.stdout?.trim() === '0.8.0' && JSON.stringify(despues) === JSON.stringify(antes), JSON.stringify(despues))
+check('migración: correrla otra vez no duplica nada', repetida.stdout?.trim() === '0.9.0' && JSON.stringify(despues) === JSON.stringify(antes), JSON.stringify(despues))
 
 const usuario = wp('user', 'create', 'jw-check-tesoreria', 'jw-check-tesoreria@example.invalid', '--role=jw_tesoreria', '--porcelain')
 const usuarioId = Number(usuario.stdout?.trim())
